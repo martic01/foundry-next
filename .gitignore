@@ -1,0 +1,17 @@
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+
+# Dependencies
+/node_modules
+
+# Local secrets -- copy .env.example to .env.local and fill in real keys
+# there. .env.local is never committed; .env.example (blank values) is.
+.env*.local
+.env
+!.env.example
+
+# Misc
+.DS_Store
+*.log

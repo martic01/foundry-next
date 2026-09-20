@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light theme (default). Space-separated R G B, not hex -- required
+       by Tailwind's `rgb(var(--x) / <alpha-value>)` pattern in
+       tailwind.config.js so opacity modifiers like `bg-surface/50` keep
+       working. */
+    --color-brand: 184 134 11;       /* #b8860b -- muted, "readable on white" gold */
+    --color-brand-dark: 138 101 8;   /* #8a6508 */
+    --color-brand-light: 253 246 227; /* #fdf6e3 */
+    --color-ink: 20 21 26;           /* #14151a */
+    --color-inkdim: 91 95 107;       /* #5b5f6b */
+    --color-line: 229 226 218;       /* #e5e2da */
+    --color-surface: 255 255 255;    /* #ffffff */
+    --color-surface-muted: 250 249 246; /* #faf9f6 */
+    color-scheme: light;
+  }
+
+  .dark {
+    /* Same gold as the 3D robot / admin badge elsewhere, since a muted
+       "readable on white" gold looks muddy on a dark background -- a
+       brighter, more saturated gold reads much better there instead. */
+    --color-brand: 242 201 76;       /* #f2c94c */
+    --color-brand-dark: 201 168 74;  /* #c9a84a */
+    --color-brand-light: 58 42 8;    /* #3a2a08 -- a dark tinted bg for badges/chips, not pale cream */
+    --color-ink: 237 238 240;        /* #edeef0 */
+    --color-inkdim: 156 160 171;     /* #9ca0ab */
+    --color-line: 46 48 56;          /* #2e3038 */
+    --color-surface: 24 25 31;       /* #18191f */
+    --color-surface-muted: 15 16 20; /* #0f1014 */
+    color-scheme: dark;
+  }
+
+  /* Forces light-theme values regardless of .dark on an ancestor --
+     used specifically by the payment Receipt (components/dashboard/Receipt.jsx)
+     and its standalone page (app/receipt/[id]/page.jsx). A receipt is a
+     document people download/print as proof of payment; it should always
+     look like a plain paper document, not flip dark just because the
+     rest of the app is in dark mode (and a dark-background PDF wastes
+     ink if actually printed). CSS custom properties cascade, so this
+     re-declaration on a nested element simply wins over .dark above it. */
+  .light-scope {
+    --color-brand: 184 134 11;
+    --color-brand-dark: 138 101 8;
+    --color-brand-light: 253 246 227;
+    --color-ink: 20 21 26;
+    --color-inkdim: 91 95 107;
+    --color-line: 229 226 218;
+    --color-surface: 255 255 255;
+    --color-surface-muted: 250 249 246;
+    color-scheme: light;
+  }
+
+  html {
+    /* Backstop against horizontal overflow on mobile -- any element that
+       ends up even slightly wider than the viewport (a fixed-width
+       child, an unshrinkable flex item, an image before it loads its
+       intrinsic size) would otherwise let the whole page scroll
+       sideways. Individual components should still size correctly on
+       their own; this just guarantees a stray one can't drag the whole
+       page along with it. */
+    @apply overflow-x-hidden;
+  }
+  body {
+    @apply bg-surfaceMuted text-ink overflow-x-hidden transition-colors duration-200;
+  }
+}
+
+@layer components {
+  .cta-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-6 py-3
+      text-sm font-semibold text-white transition
+      hover:bg-brand-dark disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .cta-btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-6 py-3
+      text-sm font-semibold text-ink transition hover:border-brand hover:text-brand;
+  }
+  .card {
+    @apply rounded-xl border border-line bg-surface shadow-card;
+  }
+  .eyebrow {
+    @apply font-display text-xs font-semibold tracking-[0.2em] uppercase text-brand-dark;
+  }
+  .field {
+    @apply w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink
+      placeholder:text-inkdim/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15;
+  }
+}
