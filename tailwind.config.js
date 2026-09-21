@@ -7,6 +7,16 @@ module.exports = {
   ],
   theme: {
     extend: {
+      screens: {
+        // Custom breakpoint (Tailwind's own scale jumps from md:768 to
+        // lg:1024, with nothing at 700) -- used specifically for the
+        // homepage hero's robot layout switch (app/page.jsx), which
+        // needs to go to its side-by-side "desktop" arrangement starting
+        // at 700px, not 1024px. Added via extend, so the default
+        // sm/md/lg/xl/2xl scale used everywhere else in the app is
+        // unaffected.
+        desktop: '700px'
+      },
       colors: {
         // Values come from CSS custom properties (see :root / .dark in
         // app/globals.css), not fixed hex here -- that's what lets every

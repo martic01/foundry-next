@@ -9,13 +9,17 @@ export default function FoundryHome() {
   return (
     <main>
       <section className="mx-auto max-w-6xl px-6 pt-16 pb-6">
-        <div className="flex flex-col items-center gap-8 lg:flex-row lg:items-stretch lg:gap-10">
-          <div className="w-full lg:flex-1">
+        <div className="relative flex flex-col desktop:flex-row desktop:items-stretch desktop:gap-10">
+          <div className="w-full desktop:flex-1">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-line bg-brand-light px-3 py-1.5 text-xs font-medium text-brand-dark">
               <Sparkles className="h-3.5 w-3.5" /> Cohort registration is open
             </div>
             <p className="eyebrow mb-3">The Foundry</p>
-            <h1 className="mb-4 max-w-2xl font-display text-3xl font-extrabold leading-tight text-ink sm:text-4xl">
+            {/* pr- reserves clearance so the heading text doesn't run
+                under the small corner-positioned bot below, on mobile/
+                tablet specifically -- desktop:pr-0 clears it once the
+                bot moves to its own side column instead. */}
+            <h1 className="mb-4 max-w-2xl pr-24 font-display text-3xl font-extrabold leading-tight text-ink sm:pr-28 sm:text-4xl desktop:pr-0">
               Learn to build with AI as a real development tool — not just a prompt box.
             </h1>
             <p className="max-w-2xl text-inkdim">
@@ -26,11 +30,23 @@ export default function FoundryHome() {
               not just an AI.
             </p>
           </div>
-          {/* w-full + a fixed mobile height so it doesn't overflow when
-              stacked above/below the text on small screens; lg:w-[440px]
-              + lg:items-stretch on the row above is what makes it match
-              the text column's height on larger screens. */}
-          <div className="h-72 w-full flex-shrink-0 sm:h-80 lg:h-auto lg:w-[440px]">
+          {/* One single Robot3D instance, repositioned by breakpoint --
+              not two separate copies for mobile vs desktop. Mounting a
+              second WebGL canvas just to hide it with CSS would double
+              the GPU/memory cost for no benefit, which defeats the
+              low-end-GPU work in Robot3D.jsx itself.
+              Below 700px: small, absolutely pinned to the top-right
+              corner of the text block (via the `relative` wrapper above),
+              out of the way rather than a large stacked block that used
+              to push/overlap the copy.
+              700px and up (`desktop:`, a custom breakpoint -- see
+              tailwind.config.js): back to normal flow as its own side
+              column, full-size, with a slow golden gradient wave glowing
+              behind it (.gold-wave, defined in globals.css) -- hidden
+              below that width since it'd just be visual noise behind a
+              much smaller bot. */}
+          <div className="absolute right-0 top-0 h-20 w-20 overflow-hidden sm:h-24 sm:w-24 desktop:relative desktop:h-auto desktop:w-[440px] desktop:flex-shrink-0">
+            <div className="gold-wave pointer-events-none absolute inset-0 -z-10 hidden desktop:block" aria-hidden="true" />
             <Robot3D />
           </div>
         </div>

@@ -24,7 +24,7 @@ export default function PortalShell({ navItems, roleLabel, userName, userEmail, 
     <div className="min-h-screen bg-surfaceMuted md:flex">
       {/* Mobile top bar -- the sidebar itself is off-screen by default on
           small viewports, this is what opens it. */}
-      <div className="flex items-center justify-between border-b border-line bg-surface px-4 py-3 md:hidden">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-surface px-4 py-3 md:hidden">
         <Link href="/" className="font-racing text-xl tracking-wide text-ink">
           The <span className="text-brand">Foundry</span>
         </Link>

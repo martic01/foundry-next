@@ -16,6 +16,23 @@ export default function RegisterFlow() {
   const course = COURSES[params.get('course')] || COURSES.foundations;
   const [done, setDone] = useState(false);
 
+  if (course.comingSoon) {
+    return (
+      <main className="mx-auto flex min-h-[60vh] max-w-lg items-center px-6 text-center">
+        <div className="card w-full p-8">
+          <h1 className="mb-2 font-display text-xl font-extrabold text-ink">{course.name} — Coming soon</h1>
+          <p className="mb-5 text-sm text-inkdim">
+            This stage isn&apos;t open for registration yet. Check back soon, or
+            register for Stage 1 in the meantime.
+          </p>
+          <a href="/#courses" className="cta-btn w-fit">
+            Back to courses
+          </a>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
       {done ? <DoneStep /> : <DetailsStep course={course} onDone={() => setDone(true)} />}

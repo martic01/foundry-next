@@ -61,11 +61,22 @@
        intrinsic size) would otherwise let the whole page scroll
        sideways. Individual components should still size correctly on
        their own; this just guarantees a stray one can't drag the whole
-       page along with it. */
+       page along with it.
+
+       Deliberately only on <html>, NOT <body> (a previous version had
+       it on both): setting overflow-x on a non-root element while
+       overflow-y is left unset forces the browser to compute overflow-y
+       as `auto` there too (a real CSS spec rule, not a bug) -- which
+       turns <body> into its own separate scroll container distinct from
+       the actual viewport. That silently breaks `position: sticky` for
+       anything inside it, which is exactly what was happening to the
+       dashboard/admin sidebar (PortalShell.jsx) -- it scrolled away
+       instead of staying pinned. <html> doesn't have this problem since
+       it's already the designated root scrolling element either way. */
     @apply overflow-x-hidden;
   }
   body {
-    @apply bg-surfaceMuted text-ink overflow-x-hidden transition-colors duration-200;
+    @apply bg-surfaceMuted text-ink transition-colors duration-200;
   }
 }
 
@@ -88,5 +99,30 @@
   .field {
     @apply w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink
       placeholder:text-inkdim/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15;
+  }
+}
+
+/* Desktop-only decorative glow behind the homepage hero's 3D robot
+   (app/page.jsx) -- a soft golden radial gradient that slides in from
+   one side, brightens as it settles behind the bot, then slides out the
+   other side, looping continuously ("comes and leaves"). Pure CSS, no
+   JS, so it costs nothing on top of the robot's own WebGL rendering. */
+@keyframes gold-wave {
+  0% { transform: translateX(-55%) scale(0.85); opacity: 0; }
+  20% { opacity: 0.55; }
+  50% { transform: translateX(0) scale(1); opacity: 0.85; }
+  80% { opacity: 0.5; }
+  100% { transform: translateX(55%) scale(0.85); opacity: 0; }
+}
+.gold-wave {
+  background: radial-gradient(circle, rgb(var(--color-brand) / 0.55), rgb(var(--color-brand) / 0) 70%);
+  filter: blur(18px);
+  animation: gold-wave 6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gold-wave {
+    animation: none;
+    opacity: 0.35;
+    transform: none;
   }
 }

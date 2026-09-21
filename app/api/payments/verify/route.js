@@ -18,6 +18,15 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
   }
 
+  // Server-side backstop for the "Coming soon" stages -- RegisterFlow.jsx
+  // already blocks this client-side (disabled button, and a dedicated
+  // screen if someone lands on /register?course=react directly), but
+  // this endpoint could always be called directly, so it can't rely on
+  // that alone.
+  if (course.comingSoon) {
+    return NextResponse.json({ error: 'This course isn\u2019t open for registration yet.' }, { status: 400 });
+  }
+
   // The laptop-spec checkbox is enforced here too, not just by disabling
   // the Pay button client-side -- same reasoning as the age check below.
   if (!specsAgreed) {
