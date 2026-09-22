@@ -41,11 +41,19 @@ export default function FoundryHome() {
               to push/overlap the copy.
               700px and up (`desktop:`, a custom breakpoint -- see
               tailwind.config.js): back to normal flow as its own side
-              column, full-size, with a slow golden gradient wave glowing
-              behind it (.gold-wave, defined in globals.css) -- hidden
-              below that width since it'd just be visual noise behind a
+              column, with a slow golden gradient wave glowing behind it
+              (.gold-wave, defined in globals.css) -- hidden below that
+              width since it'd just be visual noise behind a much smaller
+              bot. The column's own width is clamp(260px, 36vw, 440px),
+              not a flat 440px -- a fixed width would jump straight to
+              440px the instant the viewport crosses 700px, which is
+              tight enough there to risk overflow (440px bot + the text
+              column's own minimum + the gap between them, all inside
+              max-w-6xl's padding). The clamp scales it down smoothly as
+              the viewport narrows toward 700px instead, only reaching
+              the full 440px once there's actually room for it.
               much smaller bot. */}
-          <div className="absolute right-0 top-0 h-20 w-20 overflow-hidden sm:h-24 sm:w-24 desktop:relative desktop:h-auto desktop:w-[440px] desktop:flex-shrink-0">
+          <div className="absolute right-0 top-0 h-20 w-20 overflow-hidden sm:h-24 sm:w-24 desktop:relative desktop:h-auto desktop:w-[clamp(260px,36vw,440px)] desktop:flex-shrink-0">
             <div className="gold-wave pointer-events-none absolute inset-0 -z-10 hidden desktop:block" aria-hidden="true" />
             <Robot3D />
           </div>
