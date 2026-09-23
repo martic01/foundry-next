@@ -224,14 +224,22 @@ export default function Robot3D() {
     // environment/reflection source is still added just below on
     // capable hardware (metals need SOMETHING to reflect or they read
     // as flat/dark, not shiny), but skipped entirely on the low-end
-    // path to keep that tier exactly as cheap as before.
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x33334d, 1.15));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    // path to keep that tier exactly as cheap as before. Brighter than
+    // the original pass -- the gold was reading as dim/brownish rather
+    // than a vivid, "lit up" metal once actually rendered.
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x33334d, 1.6));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.4);
     keyLight.position.set(2, 3, 2.5);
     scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.9);
     fillLight.position.set(-2, 1, -2);
     scene.add(fillLight);
+    // A dedicated rim/top light specifically so the gold catches a
+    // bright highlight along its edges (the "steel" glint) rather than
+    // relying on the key light alone.
+    const rimLight = new THREE.DirectionalLight(0xfff4d6, 1.1);
+    rimLight.position.set(0, 4, -3);
+    scene.add(rimLight);
 
     // RoomEnvironment is a small procedurally-generated cubemap (not an
     // external HDR file to fetch) -- this is a ONE-TIME cost at load
@@ -247,8 +255,11 @@ export default function Robot3D() {
       scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
       pmremGenerator.dispose();
     }
-    const GOLD_METALNESS = lowEnd ? 0.45 : 0.9;
-    const GOLD_ROUGHNESS = lowEnd ? 0.5 : 0.32;
+    // Lower roughness = more polished/reflective -- "steel" rather than
+    // "brushed metal": a smoother, shinier surface than the previous
+    // pass, which read closer to matte gold paint than actual metal.
+    const GOLD_METALNESS = lowEnd ? 0.5 : 0.95;
+    const GOLD_ROUGHNESS = lowEnd ? 0.42 : 0.18;
 
     function resize() {
       if (!mount) return;
@@ -266,8 +277,34 @@ export default function Robot3D() {
       root.position.x -= center.x;
       root.position.y -= box.min.y; // stand on y=0 instead of floating at its raw export origin
       root.position.z -= center.z;
-      const maxDim = Math.max(size.x, size.y, size.z) || 1;
-      camera.position.set(0, size.y * 0.62, maxDim * 1.85);
+
+      // Distance computed directly from the FOV formula (how far back a
+      // camera needs to be for a given height to exactly fill its
+      // vertical field of view), not an eyeballed multiplier -- the
+      // previous version (size.y * 0.62 camera height, maxDim * 1.85
+      // distance, looking at the 50% mark) was a guess that turned out
+      // wrong once actually rendered: it clipped the wheels at the
+      // bottom of the frame while leaving empty space above the head,
+      // because the camera was positioned ABOVE its own look-at target
+      // (62% vs 50% height), tilting the view down rather than looking
+      // at the model straight-on.
+      const verticalFovRad = (camera.fov * Math.PI) / 180;
+      const PADDING = 1.35; // >1 = headroom so the antenna tip and wheels both clear the edges, not sit flush against them
+      const verticalDistance = (size.y / 2 / Math.tan(verticalFovRad / 2)) * PADDING;
+
+      // Also checked against the model's WIDTH, not just height -- with
+      // a fixed vertical FOV, horizontal FOV depends on camera.aspect
+      // (the container's actual width/height, set by resize() which now
+      // deliberately runs BEFORE this function -- see the load callback
+      // below), so a wide model (arms/shoulders) in a narrow/portrait
+      // container could clip on the sides even once the vertical fit is
+      // correct. Whichever dimension needs to be further back wins.
+      const horizontalFovRad = 2 * Math.atan(Math.tan(verticalFovRad / 2) * camera.aspect);
+      const horizontalDistance = (size.x / 2 / Math.tan(horizontalFovRad / 2)) * PADDING;
+
+      const distance = Math.max(verticalDistance, horizontalDistance);
+
+      camera.position.set(0, size.y * 0.5, distance);
       camera.lookAt(0, size.y * 0.5, 0);
     }
 
@@ -297,8 +334,8 @@ export default function Robot3D() {
         rightArm = model.getObjectByName('RightArm') || null;
 
         scene.add(model);
-        frameCameraToModel(model);
         resize();
+        frameCameraToModel(model);
         startTrickLoop();
       },
       undefined,
