@@ -39,7 +39,7 @@ export default async function Nav() {
             row uses a tighter gap -- five icon-only buttons plus the
             wordmark was still crowding a narrow phone screen even with
             labels hidden. */}
-        <div className="flex items-center gap-2.5 text-sm sm:gap-10">
+        <div className="flex items-center gap-3.5 text-sm sm:gap-5">
           <Link href="/#courses" className="flex items-center gap-1.5 text-inkdim hover:text-ink" title="Courses">
             <BookOpen className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
             <span className="hidden sm:inline">Courses</span>
