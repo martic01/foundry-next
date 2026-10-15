@@ -6,7 +6,9 @@ import AutoPanImage from './AutoPanImage';
 const SLIDES = [
   { src: '/images/cohort/hero.webp', alt: 'State AI Training — Learn. Build. Ship. Build with AI, ship real software.' },
   { src: '/images/cohort/stage1.webp', alt: 'Stage 1: HTML, CSS, JavaScript plus AI — master the foundation, with Git and GitHub included.' },
-  { src: '/images/cohort/stage2.webp', alt: 'Stage 2: React plus AI — build modern, production-ready apps, with Tailwind CSS, React Router and Git and GitHub.' }
+  { src: '/images/cohort/stage2.webp', alt: 'Stage 2: React plus AI — build modern, production-ready apps, with Tailwind CSS, React Router and Git and GitHub.' },
+  { src: '/images/cohort/cybersecurity.webp', alt: 'Cybersecurity plus AI — learn, build and protect. Cohort registration is open.' },
+  { src: '/images/cohort/hr.webp', alt: 'HR — people, strategy, impact. Cohort registration is open.' }
 ];
 
 export default function CohortCarousel() {

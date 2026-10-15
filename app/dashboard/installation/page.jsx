@@ -1,5 +1,5 @@
 import { Laptop, ExternalLink, Download } from 'lucide-react';
-import { createClient } from '../../../lib/supabase/server';
+import { getUser, getProfile } from '../../../lib/supabase/session';
 import { LAPTOP_SPECS } from '../../../lib/laptop-specs';
 import { INSTALLATION_OS } from '../../../lib/installation-content';
 import { toCloudinaryDownloadUrl } from '../../../lib/cloudinary';
@@ -75,14 +75,8 @@ function ToolPanel({ tool }) {
 }
 
 export default async function InstallationPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('vscode_installed, git_installed')
-    .eq('id', user.id)
-    .maybeSingle();
+  const user = await getUser();
+  const profile = await getProfile(user.id);
 
   const osTabs = INSTALLATION_OS.map((os) => ({
     key: os.key,

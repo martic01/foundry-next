@@ -1,25 +1,26 @@
 import Link from 'next/link';
 import { ArrowRight, Unlock, MessageSquare } from 'lucide-react';
 import { createClient } from '../../lib/supabase/server';
+import { getUser, getProfile } from '../../lib/supabase/session';
 import { COURSES, formatNaira } from '../../lib/courses';
 import ProfileCard from '../../components/dashboard/ProfileCard';
+import ClassStatusBanner from '../../components/BatchTimer';
+import PaymentStatTiles from '../../components/admin/PaymentStatTiles';
+import { getPayment, summarizePayments } from '../../lib/payments';
 
 export const metadata = { title: 'Admin overview — The Foundry' };
 
 export default async function AdminOverviewPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  const [{ data: registrations }, { data: unlocks }, { data: messages }] = await Promise.all([
+  // Profile comes from the per-request cache (the layout already loaded
+  // it), and runs in parallel with the page's own queries.
+  const [profile, withPayment, { data: unlocks }, { data: messages }, { data: liveBatches }] = await Promise.all([
+    getProfile(user.id),
     supabase
       .from('registrations')
-      .select('course, amount_kobo, created_at, profiles(full_name, email)')
+      .select('course, amount_kobo, amount_due_kobo, payment_status, paystack_reference, created_at, profiles(full_name, email)')
       .eq('status', 'paid')
       .order('created_at', { ascending: false }),
     supabase.from('note_unlocks').select('course, day, unlocked_at').order('unlocked_at', { ascending: false }).limit(5),
@@ -27,15 +28,34 @@ export default async function AdminOverviewPage() {
       .from('messages')
       .select('content, created_at, batches(label)')
       .order('created_at', { ascending: false })
-      .limit(5)
+      .limit(5),
+    supabase
+      .from('batches')
+      .select('id, label, course, start_date, class_status, timer_total_seconds, timer_elapsed_seconds, timer_started_at')
+      .in('class_status', ['running', 'paused'])
+      .order('created_at')
   ]);
 
-  const totalRevenueKobo = (registrations || []).reduce((sum, r) => sum + (r.amount_kobo || 0), 0);
+  // If the payment-status migration hasn't been run, that select errors;
+  // fall back to the old columns (everyone then counts as paid).
+  const registrations = withPayment.error
+    ? (
+        await supabase
+          .from('registrations')
+          .select('course, amount_kobo, paystack_reference, created_at, profiles(full_name, email)')
+          .eq('status', 'paid')
+          .order('created_at', { ascending: false })
+      ).data
+    : withPayment.data;
+
+  const payments = summarizePayments(registrations);
   const perCourse = { foundations: 0, react: 0 };
   (registrations || []).forEach((r) => {
     if (perCourse[r.course] !== undefined) perCourse[r.course] += 1;
   });
-  const recentPayments = (registrations || []).slice(0, 5);
+  // "Recent payments" = money that actually arrived -- not a pending or
+  // complimentary enrollment, which would just read as a confusing ₦0.
+  const recentPayments = (registrations || []).filter((r) => getPayment(r).receivedKobo > 0).slice(0, 5);
 
   // Merged, chronologically-sorted feed of operational activity -- not
   // money (that's "Recent payments" below), but the things an admin DID:
@@ -50,7 +70,7 @@ export default async function AdminOverviewPage() {
     ...(messages || []).map((m) => ({
       type: 'message',
       at: m.created_at,
-      text: `Sent a broadcast to ${m.batches?.label || 'a batch'}: "${m.content.slice(0, 60)}${m.content.length > 60 ? '…' : ''}"`
+      text: `Sent a broadcast to ${m.batches?.label || 'all batches'}: "${m.content.slice(0, 60)}${m.content.length > 60 ? '…' : ''}"`
     }))
   ]
     .sort((a, b) => new Date(b.at) - new Date(a.at))
@@ -68,14 +88,29 @@ export default async function AdminOverviewPage() {
           up here -- that's expected, not a bug. */}
       <ProfileCard profile={profile} registrations={[]} />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+      {!!liveBatches?.length && (
+        <div>
+          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-inkdim">Classes in session</p>
+          <ClassStatusBanner
+            batches={liveBatches.map((b) => ({ ...b, courseName: COURSES[b.course]?.name || b.course }))}
+            serverNow={Date.now()}
+          />
+        </div>
+      )}
+
+      <div className="mb-4 grid gap-4 sm:grid-cols-3">
         <div className="card p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-inkdim">Total revenue</p>
-          <p className="mt-1 font-display text-2xl font-extrabold text-ink">{formatNaira(totalRevenueKobo / 100)}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-inkdim">Collected</p>
+          <p className="mt-1 font-display text-2xl font-extrabold text-ink">{formatNaira(payments.collectedKobo / 100)}</p>
         </div>
         <div className="card p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-inkdim">Paid registrations</p>
-          <p className="mt-1 font-display text-2xl font-extrabold text-ink">{registrations?.length || 0}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-inkdim">Outstanding</p>
+          <p className={`mt-1 font-display text-2xl font-extrabold ${payments.outstandingKobo > 0 ? 'text-amber-600 dark:text-amber-300' : 'text-ink'}`}>
+            {formatNaira(payments.outstandingKobo / 100)}
+          </p>
+          <p className="text-xs text-inkdim">
+            {payments.owingCount} {payments.owingCount === 1 ? 'student owes' : 'students owe'} money
+          </p>
         </div>
         <div className="card p-5">
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-inkdim">By course</p>
@@ -85,6 +120,10 @@ export default async function AdminOverviewPage() {
             </p>
           ))}
         </div>
+      </div>
+
+      <div className="mb-8">
+        <PaymentStatTiles summary={payments} />
       </div>
 
       <div className="mb-8 grid gap-6 lg:grid-cols-2">

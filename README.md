@@ -114,9 +114,195 @@ this app only ever sees the resulting session.
 4. **Registration** — completes automatically, in the same request,
    right after payment is confirmed: profile saved (name/email come from
    the Google session, not a form), assigned to a batch (oldest batch for
-   that course with fewer than 30 paid students, else a new one — see
+   that course with fewer than 50 paid students that hasn't ended, else a new one — see
    `assign_batch` in `supabase/schema.sql`), registration recorded. No
    separate "finish creating your account" step exists to abandon.
+
+## Batch controls (admin)
+
+> **Upgrading an existing project?** Run
+> `supabase/migration-batch-controls.sql` once in the Supabase SQL Editor
+> (safe to re-run). Fresh installs get everything from `schema.sql`.
+
+- **Batches** (`/admin/batches`) — 50 seats each. Rename a batch (students
+  see the name), set its course start date, and run its **9-week class
+  timer**: Start, Pause, Resume, Restart, End. State machine lives in
+  `lib/batch-timer.js`. Each batch lists its students; each can be
+  blocked, moved to another batch of the same course (capacity-checked),
+  removed from the batch, or deleted permanently (auth + profile +
+  registrations). Paid students with no batch show in an "Unassigned"
+  box at the top.
+- **Content** (`/admin/content`) — class links, videos and announcements.
+  Each is aimed at **one batch or all batches**, and can be edited
+  (including changing the audience) or deleted. Links can be replaced by
+  editing the URL.
+- **Registration** (`/admin/registration`) — per course: open/closed
+  switch and a tag (Coming soon, Ended, Limited seats available, All seats
+  taken). Closing needs a **reopen date or "until further notice"**; on
+  the date, registration reopens by itself. Coming soon / Ended / All
+  seats taken also close registration; Limited seats is display-only.
+  A payment *started before* the close is still honoured by
+  `/api/payments/verify`, so nobody is charged and refused.
+- **Student side** — a live class-status banner (On / Paused / Ended,
+  with weeks · days · hours · mins · secs countdown) at the top of every
+  dashboard page, plus batch name, course details, start date and payment
+  status on Overview. Updates live via Supabase Realtime, with polling as
+  a fallback.
+
+## Payment status for directly-added students
+
+> **Upgrading?** Run `supabase/migration-payment-status.sql` once in the
+> Supabase SQL Editor (safe to re-run). Fresh installs get it from
+> `schema.sql`.
+
+On **Admin → Students → "Add a student directly"** just pick a status —
+the amount defaults to the course price, so the usual case is one tap.
+(Paid and Pending have a folded "Change amount…" link if you need it;
+Part payment shows its fields straight away.)
+
+| Status | Records | Receipt |
+|---|---|---|
+| **Paid** | amount received (defaults to the course price) + method | yes |
+| **Part payment** | received so far + total agreed + method → balance | yes (shows balance) |
+| **Payment pending** | total agreed, nothing received | no |
+| **Complimentary** | nothing | no |
+
+Method is cash, bank transfer, POS or other. The amount, method and
+status are validated server-side **before** any account is created
+(`lib/payments.js`, unit-tested), and adding someone already enrolled in
+that course is refused.
+
+- **Payment stats:** the Payments page opens with **Collected** and
+  **Outstanding**, then a tile per status — *All, Paid, Part payment,
+  Pending, Complimentary* — each with its count and the amount still owed.
+  Click a tile to filter the ledger, and narrow further by **Manual** or
+  **Paystack**; the tile counts and headline money always cover everyone,
+  while a line under the filters shows the totals for what's in view. The
+  Overview shows the same stats, and its tiles link straight into the
+  matching filtered ledger (`/admin/payments?status=pending`). All of it
+  comes from one function, `summarizePayments()` in `lib/payments.js`
+  (unit-tested), so the two pages can't disagree.
+- **Payment status on every student, and filters:** **Students** shows,
+  for each course a student holds, its source chip (Manual / Paystack),
+  its payment chip (Paid / Part payment / Payment pending / Complimentary)
+  and the amounts (e.g. "₦50,000 paid · ₦100,000 balance"). Filter by
+  payment status (chips show how many students are in each) and by how
+  they registered. Filters apply to the *same* registration — "Paid" +
+  "Manual" means one registration that is both — and a student with
+  several registrations matches if any one does (the rest are dimmed).
+  Inside each **batch**, every student shows their payment chip and
+  amounts, and the status counts above the list filter that batch.
+- **Edit later:** **Admin → Payments** shows every enrollment with its
+  status; directly-added students get an edit button (pending → paid,
+  record another instalment). Paystack payments are verified against
+  Paystack and are read-only.
+- **Access is separate from payment.** `registrations.status` still
+  means "has access"; `payment_status` is the money. An enrolled student
+  has full access whatever the status — use Block / Remove to cut access.
+- **Where it shows:** the Payments ledger (collected vs outstanding), an
+  amber "Owes ₦X" chip beside the student in their batch, the student's
+  own Overview card, and receipts (a part payment is labelled as such and
+  shows the balance).
+
+## Pushing to git
+
+- **Do commit `supabase/`** (`schema.sql` + the `migration-*.sql` files).
+  It holds table definitions and security policies only — no keys, no
+  data — and the schema isn't what protects your data anyway (Row Level
+  Security does). Keeping it in git is what lets you rebuild or review the
+  database later.
+- **Never commit `.env.local`.** It holds `PAYSTACK_SECRET_KEY` and
+  `SUPABASE_SERVICE_ROLE_KEY`; the service-role key bypasses every
+  security rule. `.gitignore` already excludes it. Put the same values in
+  your host's environment-variable settings (e.g. Vercel → Settings →
+  Environment Variables). `.env.example` (empty placeholders) *is*
+  committed so others know what to set.
+- Before your first push, check nothing sensitive is tracked:
+  `git ls-files | grep -i env` should list only `.env.example`.
+  If `.env.local` was **ever** committed, deleting it isn't enough — it
+  stays in history, so rotate the Paystack secret key and the Supabase
+  service-role key.
+
+## How manually-added students get connected to their login
+
+`lib/accounts.js` (unit-tested against a fake Supabase client):
+
+- **Find-or-create by email, case-insensitively** — `Jane@Gmail.com` and
+  `jane@gmail.com` are the same person; `_` in an address is matched
+  literally (`john_doe` never matches `johnXdoe`). An auth account that
+  exists with no profile row is repaired instead of failing with "already
+  registered". An admin's email is refused as a student.
+- **Claim at first sign-in** — Supabase doesn't always attach a Google
+  sign-in to an account an admin pre-created; it can make a second one,
+  leaving the registration on an account the student never uses. At
+  sign-in (`app/auth/callback/route.js`), registrations on any *student*
+  account with the same email that has **never signed in** are moved onto
+  the account that just did, and the empty one is removed. It only runs
+  for a verified email, never merges two accounts that have both signed
+  in, never touches admins, and leaves the old account alone if the move
+  fails. This also heals duplicates created before this fix.
+- Adding someone who is already enrolled in that course is refused, and
+  the message names their course and batch.
+- **How they registered is labelled** on every student: a violet
+  **Manual** chip (added by an admin) or a blue **Paystack** chip
+  (registered and paid online). It's derived from the payment reference
+  (`getSource()` in `lib/payments.js`), so it's correct for existing
+  registrations too. It shows on Students (per course, since one student
+  can have one of each), on each student inside a batch, and on the
+  Payments ledger.
+
+## In-app dialogs (no browser `confirm()` / `alert()`)
+
+`components/ui/DialogProvider.jsx` is mounted once in `app/layout.jsx`.
+Any client component can use it:
+
+```jsx
+const { confirm, alert } = useDialog();
+
+const ok = await confirm({
+  title: 'Delete announcement?',
+  message: 'Students will no longer see it.',
+  confirmLabel: 'Delete',
+  tone: 'danger'            // 'default' | 'danger' | 'success' | 'error'
+});
+if (!ok) return;
+
+await alert({ title: 'Saved', message: 'Batch renamed.', tone: 'success' });
+```
+
+Both return Promises, so call sites read like the native ones. A plain
+string works as shorthand (`confirm('Sure?')`). Dialogs queue if several
+are requested at once, close on Escape / backdrop click, trap Tab focus,
+lock page scroll, and return focus to the button that opened them. For
+`tone: 'danger'` confirms, **Cancel** is focused by default so a stray
+Enter can't delete anything.
+
+## Performance notes
+
+- `lib/supabase/session.js` — `getUser()` / `getProfile()` are memoised
+  **per request** (React `cache`), so the root Nav, the portal layout and
+  the page share one Supabase Auth call and one profile query instead of
+  repeating them. Server Actions and route handlers deliberately do *not*
+  use these: they verify fresh, since they're the real authorization
+  boundary.
+- Independent queries run in parallel (`Promise.all`) rather than in a
+  waterfall — see the dashboard layout/pages.
+- `app/admin/loading.jsx` and `app/dashboard/loading.jsx` show a skeleton
+  instantly, so sidebar clicks respond right away and Next can prefetch
+  each route's shell.
+- `components/Tabs.jsx` mounts a panel on first open and then keeps it
+  mounted (hidden): switching back is instant and half-typed form input
+  survives.
+- The landing page's 3D robot (three.js) is code-split and loaded after
+  the page is interactive (`components/Robot3DLazy.jsx`).
+- Landing + `/register` read course registration state through
+  `getPublicCourseSettings()` (Next data cache, tag `course-settings`),
+  which saving on `/admin/registration` busts immediately. Anything that
+  decides whether someone may pay reads the live table instead.
+- Locked note days are stripped on the server, so unreleased lesson text
+  isn't shipped to the browser.
+- Class videos use `preload="none"` plus a Cloudinary poster frame, so
+  nothing downloads until Play.
 
 ## Why not a secret tap-the-bot password for admin
 
@@ -178,6 +364,7 @@ refuses the query.
 │   ├── admin/
 │   │   ├── login/page.jsx           # Admin login (Google)
 │   │   ├── page.jsx                 # Admin dashboard
+│   │   ├── batches/ content/ registration/   # Batch, content & registration admin
 │   │   └── actions.js               # Admin Server Actions (RLS-bound)
 │   └── api/
 │       └── payments/verify/route.js  # Server-side Paystack verification
@@ -185,6 +372,9 @@ refuses the query.
 ├── components/                      # UI components (admin/, dashboard/)
 ├── lib/
 │   ├── courses.js                    # Pricing, learn lists, age minimums
+│   ├── batch-timer.js                # 9-week class timer state machine
+│   ├── course-status.js              # Registration open/closed + tags + reopen date
+│   ├── supabase/session.js           # Per-request cached getUser()/getProfile()
 │   ├── supabase/                     # client / server / admin Supabase clients
 │   ├── paystack.js, emailjs-server.js
 ├── supabase/schema.sql               # Full schema + RLS policies

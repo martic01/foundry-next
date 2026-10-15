@@ -1,17 +1,45 @@
-# Next.js
-/.next/
-/out/
-next-env.d.ts
-
-# Dependencies
-/node_modules
-
-# Local secrets -- copy .env.example to .env.local and fill in real keys
-# there. .env.local is never committed; .env.example (blank values) is.
-.env*.local
+# --- Secrets: NEVER commit these -------------------------------------------
+# .env.local holds PAYSTACK_SECRET_KEY and SUPABASE_SERVICE_ROLE_KEY. Anyone
+# who gets the service-role key bypasses every Row Level Security rule and
+# can read or delete the whole database. Set these in your host's dashboard
+# (e.g. Vercel -> Settings -> Environment Variables) instead.
 .env
+.env.local
+.env.*.local
+.env.production
+.env.development
+# .env.example is the safe template (no real values) -- it IS committed.
 !.env.example
 
-# Misc
-.DS_Store
+# --- Dependencies & build output -------------------------------------------
+node_modules/
+.next/
+out/
+build/
+.vercel/
+.turbo/
+
+# --- Logs, caches, tooling -------------------------------------------------
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+*.tsbuildinfo
+next-env.d.ts
+
+# --- OS / editor junk ------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# --- Private keys / certs --------------------------------------------------
+*.pem
+*.key
+
+# NOTE: supabase/ (schema.sql + migrations) is deliberately NOT ignored.
+# It contains table definitions and security policies only -- no keys, no
+# data -- and keeping it in git is what lets you rebuild or review the
+# database later.

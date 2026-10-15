@@ -82,11 +82,51 @@
 --     );
 --   create policy "class_videos_admin_insert" on class_videos for insert with check (is_admin());
 --   create policy "class_videos_admin_delete" on class_videos for delete using (is_admin());
+--
+-- ALREADY RAN SCHEMA WITHOUT rate_limits (the security-hardening pass --
+-- /api/payments/verify rate limiting)? Run this instead:
+--   create table rate_limits (
+--     key text primary key,
+--     count int not null default 1,
+--     window_start timestamptz not null default now()
+--   );
+--   alter table rate_limits enable row level security;
+--   create or replace function check_rate_limit(p_key text, p_max int, p_window_seconds int) returns boolean
+--   language plpgsql security definer as $$
+--   declare
+--     v_count int;
+--   begin
+--     insert into rate_limits (key, count, window_start)
+--     values (p_key, 1, now())
+--     on conflict (key) do update
+--       set count = case
+--           when rate_limits.window_start < now() - (p_window_seconds || ' seconds')::interval
+--             then 1
+--           else rate_limits.count + 1
+--         end,
+--         window_start = case
+--           when rate_limits.window_start < now() - (p_window_seconds || ' seconds')::interval
+--             then now()
+--           else rate_limits.window_start
+--         end
+--     returning count into v_count;
+--     return v_count <= p_max;
+--   end;
+--   $$;
+
+-- ALREADY HAVE A DATABASE WITHOUT payment_status (cash / part / pending /
+-- complimentary for directly-added students)? Run
+-- supabase/migration-payment-status.sql -- one small, re-runnable step.
+--
+-- ALREADY RAN AN EARLIER VERSION (30-seat batches, one class link per
+-- batch, no timer / registration controls)? Run
+-- supabase/migration-batch-controls.sql instead of this whole file. It is
+-- safe to re-run.
 
 create extension if not exists pgcrypto;
 
-create type course_key as enum ('foundations', 'react');
-create type user_role as enum ('student', 'admin');
+create type course_key as enum ('foundations', 'react', 'cybersecurity', 'hr');
+create type user_role as enum ('student', 'admin', 'teacher');
 create type registration_status as enum ('paid', 'removed');
 
 -- One row per authenticated user (students AND the admin), extending
@@ -110,12 +150,24 @@ create table profiles (
   created_at timestamptz not null default now()
 );
 
--- Groups of up to `capacity` (30) students per course.
+-- Groups of up to `capacity` (50) students per course.
 create table batches (
   id uuid primary key default gen_random_uuid(),
   course course_key not null,
-  label text not null, -- e.g. "Foundations -- Batch 1"
-  capacity int not null default 30,
+  label text not null, -- admin-editable; shown to students as their batch name
+  capacity int not null default 50,
+  -- Admin-announced start date, shown to students. Informational only --
+  -- the class timer below is started separately with the Start button.
+  start_date date,
+  -- Class timer (9 weeks by default). Remaining time =
+  --   total - elapsed - (now - started_at, only while 'running').
+  -- See lib/batch-timer.js for the state machine.
+  class_status text not null default 'not_started'
+    check (class_status in ('not_started', 'running', 'paused', 'ended')),
+  timer_total_seconds int not null default 5443200,
+  timer_elapsed_seconds int not null default 0,
+  timer_started_at timestamptz,
+  timer_ended_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -130,8 +182,16 @@ create table registrations (
   age int not null,
   batch_id uuid references batches(id) on delete set null,
   paystack_reference text not null unique,
-  amount_kobo int not null,
-  status registration_status not null default 'paid',
+  amount_kobo int not null, -- money actually RECEIVED so far
+  status registration_status not null default 'paid', -- access flag, not payment state
+  -- Payment state for admin-created registrations (cash / transfer /
+  -- comps). Paystack rows are always 'paid'. Editable from
+  -- /admin/payments, see lib/payments.js.
+  payment_status text not null default 'paid'
+    check (payment_status in ('paid', 'part', 'pending', 'free')),
+  amount_due_kobo int,  -- agreed total for 'part' / 'pending'; NULL otherwise
+  payment_method text
+    check (payment_method in ('cash', 'bank_transfer', 'pos', 'other')),
   -- Ticked on the payment page before the Pay button unlocks -- a record
   -- that this specific student was shown and agreed to the minimum
   -- laptop spec requirements (lib/laptop-specs.js) for THIS course, at
@@ -140,10 +200,14 @@ create table registrations (
   created_at timestamptz not null default now()
 );
 
--- One class link per batch, set/updated by the admin.
+-- Class links, set/edited/deleted by the admin. Aimed at one batch or all.
+-- batch_id NULL = shown to every batch.
 create table class_links (
-  batch_id uuid primary key references batches(id) on delete cascade,
+  id uuid primary key default gen_random_uuid(),
+  batch_id uuid references batches(id) on delete cascade,
+  title text,
   url text not null,
+  created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   updated_by uuid references profiles(id)
 );
@@ -152,10 +216,11 @@ create table class_links (
 -- writes (enforced below by the insert policy, not just the UI).
 create table messages (
   id uuid primary key default gen_random_uuid(),
-  batch_id uuid not null references batches(id) on delete cascade,
+  batch_id uuid references batches(id) on delete cascade, -- NULL = all batches
   sender_id uuid not null references profiles(id),
   content text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
 );
 
 -- One class recording per row, hosted on Cloudinary (not Supabase
@@ -168,12 +233,13 @@ create table messages (
 -- itself.
 create table class_videos (
   id uuid primary key default gen_random_uuid(),
-  batch_id uuid not null references batches(id) on delete cascade,
+  batch_id uuid references batches(id) on delete cascade, -- NULL = all batches
   title text not null,
   description text,
   cloudinary_url text not null,
   cloudinary_public_id text,
   created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   created_by uuid references profiles(id)
 );
 
@@ -188,6 +254,31 @@ create table note_unlocks (
   day int not null,
   unlocked_at timestamptz not null default now(),
   primary key (course, day)
+);
+
+-- Per-course registration controls, edited from /admin/registration.
+create table course_settings (
+  course course_key primary key,
+  registration_open boolean not null default true,
+  tag text not null default 'none'
+    check (tag in ('none', 'coming_soon', 'ended', 'limited_seats', 'sold_out')),
+  reopen_at timestamptz,            -- NULL while closed = "until further notice"
+  registration_closed_at timestamptz, -- lets verify honour payments started before the close
+  updated_at timestamptz not null default now(),
+  updated_by uuid references profiles(id) on delete set null
+);
+
+-- Backs check_rate_limit() below -- one row per rate-limited "thing"
+-- (e.g. one row per user hitting /api/payments/verify), tracking a
+-- count within a rolling window. Not meant to be queried directly by
+-- the app; check_rate_limit() is the only intended way to read/write
+-- this table, and RLS below denies all direct access since this is
+-- called via the service-role client anyway (route handlers, not RLS-
+-- bound student sessions).
+create table rate_limits (
+  key text primary key,
+  count int not null default 1,
+  window_start timestamptz not null default now()
 );
 
 -- ---------- Helper functions (used inside the RLS policies below) ----------
@@ -205,19 +296,30 @@ language sql security definer stable as $$
 $$;
 
 -- Finds the oldest batch for a course that still has room (< capacity
--- paid registrations), or creates a new one -- this is the "30 per
--- group" batching. security definer + only ever called from server-only
--- code (via the service-role client in app/api/payments/verify) so it
--- isn't reachable by a student's own session.
+-- paid registrations), or creates a new one -- the "50 per group"
+-- batching. A batch whose class has ended (or whose running timer has run
+-- out) no longer takes new students. The advisory lock makes
+-- count-then-insert atomic so two simultaneous payments can't both take
+-- the last seat. security definer + only ever called from server-only
+-- code (service-role client) so it isn't reachable by a student session.
 create or replace function assign_batch(p_course course_key) returns uuid
 language plpgsql security definer as $$
 declare
   v_batch_id uuid;
   v_batch_num int;
 begin
+  perform pg_advisory_xact_lock(hashtext('assign_batch:' || p_course::text));
+
   select b.id into v_batch_id
   from batches b
   where b.course = p_course
+    and b.class_status <> 'ended'
+    and (
+      b.class_status <> 'running'
+      or b.timer_started_at is null
+      or b.timer_started_at
+         + make_interval(secs => greatest(b.timer_total_seconds - b.timer_elapsed_seconds, 0)) > now()
+    )
     and (
       select count(*) from registrations r
       where r.batch_id = b.id and r.status = 'paid'
@@ -231,10 +333,67 @@ begin
 
   select count(*) + 1 into v_batch_num from batches where course = p_course;
   insert into batches (course, label, capacity)
-  values (p_course, initcap(replace(p_course::text, '_', ' ')) || ' -- Batch ' || v_batch_num, 30)
+  values (p_course, initcap(replace(p_course::text, '_', ' ')) || ' -- Batch ' || v_batch_num, 50)
   returning id into v_batch_id;
 
   return v_batch_id;
+end;
+$$;
+
+-- True when the caller may see content aimed at p_batch_id: admins
+-- always; students when not blocked and holding a paid registration in
+-- that batch -- or, for content aimed at ALL batches (p_batch_id null),
+-- a paid registration in any batch. Shared by the class_links,
+-- class_videos and messages policies below.
+create or replace function can_view_batch_content(p_batch_id uuid) returns boolean
+language sql security definer stable as $$
+  select is_admin() or (
+    not is_blocked() and exists (
+      select 1 from registrations r
+      where r.user_id = auth.uid()
+        and r.status = 'paid'
+        and (p_batch_id is null or r.batch_id = p_batch_id)
+    )
+  );
+$$;
+
+-- Atomic rate limiter, backed by the rate_limits table above -- exists
+-- specifically because serverless functions (this app's API routes,
+-- deployed on Vercel) don't share memory between invocations, so a
+-- plain in-process counter would reset constantly and protect nothing;
+-- the database is the one piece of shared state every invocation can
+-- see. Used by /api/payments/verify to stop a signed-in account (or a
+-- script using stolen session cookies) from hammering that endpoint --
+-- each call there triggers a real request to Paystack's API, so
+-- unrestricted retries cost real API quota, not just server time.
+-- p_key should already be scoped to whatever you're limiting (e.g.
+-- 'verify:' || user_id) -- this function doesn't scope it for you.
+-- Returns true if the call is within the limit and should proceed,
+-- false if it should be rejected. The upsert + returning is what makes
+-- the increment-and-check atomic under concurrent requests -- two
+-- requests arriving at the same instant can't both read a stale count
+-- and both think they're under the limit.
+create or replace function check_rate_limit(p_key text, p_max int, p_window_seconds int) returns boolean
+language plpgsql security definer as $$
+declare
+  v_count int;
+begin
+  insert into rate_limits (key, count, window_start)
+  values (p_key, 1, now())
+  on conflict (key) do update
+    set count = case
+        when rate_limits.window_start < now() - (p_window_seconds || ' seconds')::interval
+          then 1
+        else rate_limits.count + 1
+      end,
+      window_start = case
+        when rate_limits.window_start < now() - (p_window_seconds || ' seconds')::interval
+          then now()
+        else rate_limits.window_start
+      end
+  returning count into v_count;
+
+  return v_count <= p_max;
 end;
 $$;
 
@@ -262,6 +421,14 @@ alter table class_links enable row level security;
 alter table messages enable row level security;
 alter table class_videos enable row level security;
 alter table note_unlocks enable row level security;
+alter table course_settings enable row level security;
+-- rate_limits gets RLS enabled with NO policies at all -- deliberate
+-- deny-by-default. Nothing should ever read/write this table except
+-- check_rate_limit() (security definer, so it runs with elevated
+-- privileges regardless) via the service-role client in
+-- /api/payments/verify; no student session should be able to touch it
+-- directly in either direction.
+alter table rate_limits enable row level security;
 
 -- profiles: a student can see only their own row; the admin can see/
 -- update everyone's. There is no public insert policy -- rows are only
@@ -302,53 +469,39 @@ create policy "registrations_select" on registrations for select
   using (user_id = auth.uid() or is_admin());
 create policy "registrations_admin_update" on registrations for update using (is_admin());
 
--- class_links: a student can see only their own batch's link (and only
--- while not blocked and not removed from that batch); the admin manages
--- all of them.
-create policy "class_links_select" on class_links for select
-  using (
-    is_admin() or (
-      not is_blocked() and batch_id in (
-        select batch_id from registrations
-        where user_id = auth.uid() and status = 'paid'
-      )
-    )
-  );
+-- class_links / class_videos / messages: one shared visibility rule
+-- (can_view_batch_content above) -- a student sees items aimed at their
+-- own batch plus items aimed at ALL batches (batch_id null), and only
+-- while not blocked/removed. Only the admin can write: this is what
+-- actually makes announcements broadcast-only, not a hidden "send"
+-- button. Deleting a video row removes it from the app immediately even
+-- though the file stays on Cloudinary until removed there separately.
+create policy "class_links_select" on class_links for select using (can_view_batch_content(batch_id));
 create policy "class_links_admin_insert" on class_links for insert with check (is_admin());
 create policy "class_links_admin_update" on class_links for update using (is_admin());
+create policy "class_links_admin_delete" on class_links for delete using (is_admin());
 
--- messages: a student can read only their own batch's messages (and only
--- while not blocked/removed); ONLY the admin can insert -- this is what
--- actually makes the chat broadcast-only, not a hidden "send" button in
--- the UI. A student's insert attempt is rejected by Postgres itself.
-create policy "messages_select" on messages for select
-  using (
-    is_admin() or (
-      not is_blocked() and batch_id in (
-        select batch_id from registrations
-        where user_id = auth.uid() and status = 'paid'
-      )
-    )
-  );
+create policy "messages_select" on messages for select using (can_view_batch_content(batch_id));
 create policy "messages_admin_insert" on messages for insert
   with check (is_admin() and sender_id = auth.uid());
+create policy "messages_admin_update" on messages for update using (is_admin());
+create policy "messages_admin_delete" on messages for delete using (is_admin());
 
--- class_videos: same visibility rule as class_links/messages -- a
--- student sees only their own batch's videos, and only while not
--- blocked/removed from it. Only the admin can insert or delete rows;
--- deleting here removes it from the app immediately even though the
--- video file itself stays on Cloudinary until removed there separately.
-create policy "class_videos_select" on class_videos for select
-  using (
-    is_admin() or (
-      not is_blocked() and batch_id in (
-        select batch_id from registrations
-        where user_id = auth.uid() and status = 'paid'
-      )
-    )
-  );
+create policy "class_videos_select" on class_videos for select using (can_view_batch_content(batch_id));
 create policy "class_videos_admin_insert" on class_videos for insert with check (is_admin());
+create policy "class_videos_admin_update" on class_videos for update using (is_admin());
 create policy "class_videos_admin_delete" on class_videos for delete using (is_admin());
+
+-- course_settings: public read (the landing page and /register need it
+-- before anyone signs in -- nothing sensitive), admin-only write.
+create policy "course_settings_select" on course_settings for select using (true);
+create policy "course_settings_admin_insert" on course_settings for insert with check (is_admin());
+create policy "course_settings_admin_update" on course_settings for update using (is_admin());
+
+insert into course_settings (course, registration_open, tag) values
+  ('foundations', true, 'none'),
+  ('react', false, 'coming_soon')
+on conflict (course) do nothing;
 
 -- note_unlocks: everyone signed in can read it (it's just "which days
 -- are open", not sensitive) -- the actual note text is bundled into the
@@ -365,6 +518,15 @@ create policy "note_unlocks_admin_delete" on note_unlocks for delete using (is_a
 -- manually from /admin/notes as the cohort progresses.
 insert into note_unlocks (course, day) values ('foundations', 1)
   on conflict (course, day) do nothing;
+
+-- Realtime for the live class banner and announcements feed (both also
+-- poll as a fallback, so this is an upgrade, not a requirement).
+do $$ begin
+  alter publication supabase_realtime add table batches;
+exception when duplicate_object or undefined_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table messages;
+exception when duplicate_object or undefined_object then null; end $$;
 
 -- ---------- Bootstrapping your own admin account ----------
 -- 1. Sign in once through /login or /register with "Continue with
@@ -383,3 +545,11 @@ insert into note_unlocks (course, day) values ('foundations', 1)
 --
 --    insert into profiles (id, full_name, email, role)
 --    values ('<your-auth-user-id>', 'Your Name', 'you@example.com', 'admin');
+
+-- ---------- Run these after this file on a fresh project ----------
+--   supabase/migration-notifications.sql   (student alerts / pop-ups)
+--   supabase/migration-teachers.sql        (Teacher role, manual batches)
+--   supabase/migration-placeholder-notes.sql
+--   supabase/migration-security-hardening.sql
+-- (migration-new-courses.sql / migration-teacher-role.sql are only for
+-- databases created before those enum values existed.)

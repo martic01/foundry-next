@@ -1,31 +1,29 @@
 import { createClient } from '../../../lib/supabase/server';
+import { getUser, getProfile } from '../../../lib/supabase/session';
 import { COURSES } from '../../../lib/courses';
 import Receipt from '../../../components/dashboard/Receipt';
 import ClassVideos from '../../../components/dashboard/ClassVideos';
+import { getPayment } from '../../../lib/payments';
 import Tabs from '../../../components/Tabs';
+import { formatStartDate } from '../../../lib/batch-timer';
+import { safeHref } from '../../../lib/safe-url';
 
 export const metadata = { title: 'My courses — The Foundry' };
 
 export default async function CoursesPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name, email')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  const { data: registrations } = await supabase
-    .from('registrations')
-    .select('*, batches(*, class_links(*))')
-    .eq('user_id', user.id)
-    .eq('status', 'paid');
-
-  const batchIds = (registrations || []).map((r) => r.batches?.id).filter(Boolean);
-  const { data: videos } = batchIds.length
-    ? await supabase.from('class_videos').select('*').in('batch_id', batchIds).order('created_at', { ascending: false })
-    : { data: [] };
+  // None of these depend on each other, so they all go out at once.
+  // RLS limits videos/links to what this student may see: items for their
+  // own batch(es) plus items aimed at ALL batches (batch_id null).
+  // Per-course filtering below just picks the right ones for each section.
+  const [profile, { data: registrations }, { data: videos }, { data: links }] = await Promise.all([
+    getProfile(user.id),
+    supabase.from('registrations').select('*, batches(*)').eq('user_id', user.id).eq('status', 'paid'),
+    supabase.from('class_videos').select('*').order('created_at', { ascending: false }),
+    supabase.from('class_links').select('*').order('created_at', { ascending: false })
+  ]);
 
   return (
     <div>
@@ -39,20 +37,17 @@ export default async function CoursesPage() {
       <div className="flex flex-col gap-6">
         {registrations?.map((reg) => {
           const course = COURSES[reg.course];
-          // class_links.batch_id is that table's primary key, so this is
-          // a one-to-one relationship -- PostgREST may return it as a
-          // single object or as a one-item array depending on version,
-          // so handle both rather than assume one.
           const batch = reg.batches;
-          const classLinkRow = Array.isArray(batch?.class_links) ? batch.class_links[0] : batch?.class_links;
-          const classLink = classLinkRow?.url;
-          const batchVideos = (videos || []).filter((v) => v.batch_id === batch?.id);
+          const appliesHere = (item) => item.batch_id === null || item.batch_id === batch?.id;
+          const batchLinks = (links || []).filter(appliesHere);
+          const batchVideos = (videos || []).filter(appliesHere);
 
           return (
             <section key={reg.id} className="card p-6">
               <p className="mb-1 text-sm font-semibold text-ink">{course?.name || reg.course}</p>
               <p className="mb-4 text-xs text-inkdim">
                 {batch ? `Batch: ${batch.label}` : 'Batch assignment pending'}
+                {batch?.start_date ? ` · Starts ${formatStartDate(batch.start_date)}` : ''}
               </p>
 
               <Tabs
@@ -63,10 +58,17 @@ export default async function CoursesPage() {
                     content: (
                       <div className="rounded-lg border border-line bg-surfaceMuted p-4">
                         <p className="mb-1 text-xs font-medium uppercase tracking-wide text-inkdim">Class link</p>
-                        {classLink ? (
-                          <a href={classLink} target="_blank" rel="noopener noreferrer" className="cta-btn mt-1 inline-flex">
-                            Join class &rarr;
-                          </a>
+                        {batchLinks.length ? (
+                          <div className="mt-2 flex flex-col gap-2">
+                            {batchLinks.map((l, i) => (
+                              <div key={l.id} className="flex flex-wrap items-center justify-between gap-2">
+                                {l.title && <p className="text-sm font-medium text-ink">{l.title}</p>}
+                                <a href={safeHref(l.url)} target="_blank" rel="noopener noreferrer" className={`${i === 0 ? 'cta-btn' : 'cta-btn-outline'} inline-flex !py-2 text-sm`}>
+                                  Join class &rarr;
+                                </a>
+                              </div>
+                            ))}
+                          </div>
                         ) : (
                           <p className="text-sm text-inkdim">Not posted yet — check back closer to the start date.</p>
                         )}
@@ -81,7 +83,11 @@ export default async function CoursesPage() {
                   {
                     key: 'receipt',
                     label: 'Receipt',
-                    content: (
+                    content: getPayment(reg).receivedKobo <= 0 ? (
+                      <p className="text-sm text-inkdim">
+                        No payment has been recorded for this course yet, so there&apos;s no receipt.
+                      </p>
+                    ) : (
                       <div>
                         <Receipt
                           reference={reg.paystack_reference}
@@ -90,6 +96,9 @@ export default async function CoursesPage() {
                           course={course}
                           studentName={profile?.full_name || user.user_metadata?.full_name || user.email}
                           studentEmail={profile?.email || user.email}
+                          paymentMethod={getPayment(reg).method}
+                          statusLabel={getPayment(reg).label}
+                          balanceKobo={getPayment(reg).balanceKobo}
                           compact
                         />
                         <a

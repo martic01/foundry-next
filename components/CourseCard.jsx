@@ -2,8 +2,21 @@ import Link from 'next/link';
 import { Check, ArrowRight, Clock } from 'lucide-react';
 import AutoPanImage from './AutoPanImage';
 import { formatNaira } from '../lib/courses';
+import { TAGS, formatReopenDate } from '../lib/course-status';
 
-export default function CourseCard({ course }) {
+const TAG_STYLES = {
+  coming_soon: 'bg-ink/80 text-white',
+  ended: 'bg-red-600 text-white',
+  limited_seats: 'bg-amber-500 text-white',
+  sold_out: 'bg-red-600 text-white'
+};
+
+// `availability` comes from getAvailability() (lib/course-status.js),
+// computed on the server from the admin's course_settings.
+export default function CourseCard({ course, availability }) {
+  const closedLabel =
+    availability.tag === 'ended' ? 'Registration ended' : availability.tag === 'sold_out' ? 'All seats taken' : availability.tag === 'coming_soon' ? 'Coming soon' : 'Registration closed';
+
   return (
     <div className="card flex flex-col overflow-hidden transition hover:shadow-cardHover">
       <div className="relative">
@@ -12,9 +25,9 @@ export default function CourseCard({ course }) {
           alt={course.name}
           frameClassName="h-48 w-full border-b border-line"
         />
-        {course.comingSoon && (
-          <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-ink/80 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
-            <Clock className="h-3 w-3" /> Coming soon
+        {availability.tag !== 'none' && (
+          <span className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${TAG_STYLES[availability.tag]}`}>
+            {availability.tag === 'coming_soon' && <Clock className="h-3 w-3" />} {TAGS[availability.tag].label}
           </span>
         )}
       </div>
@@ -33,10 +46,15 @@ export default function CourseCard({ course }) {
           <span className="font-display text-lg font-semibold text-ink">{formatNaira(course.priceNow)}</span>
           <span className="text-sm text-inkdim line-through">{formatNaira(course.priceWas)}+</span>
         </div>
-        {course.comingSoon ? (
-          <button type="button" disabled className="cta-btn w-full opacity-50" aria-disabled="true">
-            Coming soon
-          </button>
+        {!availability.open ? (
+          <div>
+            <button type="button" disabled className="cta-btn w-full opacity-50" aria-disabled="true">
+              {closedLabel}
+            </button>
+            <p className="mt-2 text-center text-xs text-inkdim">
+              {availability.reopenAt ? `Opens ${formatReopenDate(availability.reopenAt)}` : 'Opening date to be announced'}
+            </p>
+          </div>
         ) : (
           <Link href={`/register?course=${course.key}`} className="cta-btn w-full">
             Register now <ArrowRight className="h-4 w-4" />

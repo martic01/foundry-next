@@ -26,7 +26,7 @@ export async function middleware(request) {
 
   const path = request.nextUrl.pathname;
   const isAdminRoute = path.startsWith('/admin') && path !== '/admin/login';
-  const isDashboardRoute = path.startsWith('/dashboard');
+  const isDashboardRoute = path.startsWith('/dashboard') || path.startsWith('/teacher');
 
   if (!user && (isAdminRoute || isDashboardRoute)) {
     const loginPath = isAdminRoute ? '/admin/login' : '/login';
@@ -42,5 +42,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/dashboard/:path*']
+  matcher: ['/admin/:path*', '/dashboard/:path*', '/teacher/:path*']
 };

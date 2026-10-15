@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X, LogOut } from 'lucide-react';
-import ThemeToggle from '../ThemeToggle';
 
 // One shell, used by both app/dashboard/layout.jsx and
 // app/admin/layout.jsx -- each passes its own navItems + role label, so
@@ -92,15 +91,18 @@ export default function PortalShell({ navItems, roleLabel, userName, userEmail, 
               <p className="truncate text-sm font-medium text-ink">{userName}</p>
               <p className="truncate text-xs text-inkdim">{userEmail}</p>
             </div>
-            <ThemeToggle />
           </div>
           <span className="inline-block rounded-full bg-surfaceMuted px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-inkdim">
             {roleLabel}
           </span>
           {/* logoutAction is a Server Action passed down from the layout
               -- that's the one kind of function that IS allowed to cross
-              the server/client prop boundary. */}
-          <form action={logoutAction} className="mt-3">
+              the server/client prop boundary. data-nav-loading is picked
+              up by NavigationLoader.jsx's global submit listener, so the
+              top progress bar shows for this specific form (it navigates
+              away) without showing for every other form in the admin/
+              dashboard portal (most stay on the same page). */}
+          <form action={logoutAction} className="mt-3" data-nav-loading="true">
             <button
               type="submit"
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-inkdim hover:bg-surfaceMuted hover:text-ink"

@@ -1,18 +1,28 @@
 import { CalendarDays, Hourglass, Users, ShieldCheck, Sparkles } from 'lucide-react';
 import CohortCarousel from '../components/CohortCarousel';
 import CourseCard from '../components/CourseCard';
-import Robot3D from '../components/Robot3D';
+import Robot3D from '../components/Robot3DLazy';
 import { CategoryGrid, ProcessSteps, SplitCta, Faq } from '../components/MarketplaceSections';
 import { COURSES } from '../lib/courses';
+import { getPublicCourseSettings } from '../lib/course-settings';
+import { getAvailability } from '../lib/course-status';
 
-export default function FoundryHome() {
+export default async function FoundryHome() {
+  // Admin-controlled registration state, read through a short-lived
+  // cache that the admin's save busts immediately (see
+  // getPublicCourseSettings). A scheduled reopen date still takes effect
+  // on time because getAvailability() compares it to "now" per request.
+  const settings = await getPublicCourseSettings();
+  const availability = Object.fromEntries(Object.keys(COURSES).map((k) => [k, getAvailability(settings[k])]));
+  const anyOpen = Object.values(availability).some((a) => a.open);
+
   return (
     <main>
       <section className="mx-auto max-w-6xl px-6 pt-16 pb-6">
         <div className="relative flex flex-col desktop:flex-row desktop:items-stretch desktop:gap-10">
           <div className="w-full desktop:flex-1">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-line bg-brand-light px-3 py-1.5 text-xs font-medium text-brand-dark">
-              <Sparkles className="h-3.5 w-3.5" /> Cohort registration is open
+              <Sparkles className="h-3.5 w-3.5" /> {anyOpen ? 'Cohort registration is open' : 'Cohort registration is currently closed'}
             </div>
             <p className="eyebrow mb-3">The Foundry</p>
             {/* pr- reserves clearance so the heading text doesn't run
@@ -24,7 +34,7 @@ export default function FoundryHome() {
             </h1>
             <p className="max-w-2xl text-inkdim">
               A cohort-based course for people who want to actually ship
-              software, not just talk about it. Two stages take you from the
+              software, not just talk about it. Our web-development stages take you from the
               fundamentals to shipping full React applications, each with live
               sessions, real projects, and feedback from an actual instructor —
               not just an AI.
@@ -67,13 +77,13 @@ export default function FoundryHome() {
           <div className="flex flex-col gap-4">
             <ul className="space-y-2.5 text-sm text-inkdim">
               <li className="flex items-center gap-2.5">
-                <CalendarDays className="h-4 w-4 flex-shrink-0 text-brand" /> Registration is open now
+                <CalendarDays className="h-4 w-4 flex-shrink-0 text-brand" /> {anyOpen ? 'Registration is open now' : 'Registration is closed right now — see each course below for when it opens'}
               </li>
               <li className="flex items-center gap-2.5">
                 <Hourglass className="h-4 w-4 flex-shrink-0 text-brand" /> Closes the day the cohort starts — date announced to the waitlist
               </li>
               <li className="flex items-center gap-2.5">
-                <Users className="h-4 w-4 flex-shrink-0 text-brand" /> Limited spots per cohort (30 per batch)
+                <Users className="h-4 w-4 flex-shrink-0 text-brand" /> Limited spots per cohort (50 per batch)
               </li>
               <li className="flex items-center gap-2.5">
                 <ShieldCheck className="h-4 w-4 flex-shrink-0 text-brand" /> Secure sign-in with Google, payment handled by Paystack
@@ -81,7 +91,7 @@ export default function FoundryHome() {
             </ul>
             <p className="text-sm text-inkdim">
               <strong className="text-ink">How to register:</strong> pick a
-              stage below, sign in with Google, confirm your date of birth,
+              course below, sign in with Google, confirm your date of birth,
               then pay securely — your seat and cohort account are set up
               automatically the moment payment is confirmed.
             </p>
@@ -89,8 +99,9 @@ export default function FoundryHome() {
         </div>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
-          <CourseCard course={COURSES.foundations} />
-          <CourseCard course={COURSES.react} />
+          {Object.values(COURSES).map((c) => (
+            <CourseCard key={c.key} course={c} availability={availability[c.key]} />
+          ))}
         </div>
       </section>
 

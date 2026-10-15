@@ -1,58 +1,60 @@
-import Link from 'next/link';
 import { createClient } from '../../../lib/supabase/server';
-import { COURSES, formatNaira } from '../../../lib/courses';
+import { COURSES } from '../../../lib/courses';
+import { PAYMENT_STATUSES } from '../../../lib/payments';
+import PaymentsLedger from '../../../components/admin/PaymentsLedger';
 
 export const metadata = { title: 'Payments — The Foundry' };
 
-export default async function PaymentsPage() {
+export default async function PaymentsPage({ searchParams }) {
   const supabase = await createClient();
 
-  const { data: registrations } = await supabase
+  const base = 'id, course, amount_kobo, paystack_reference, created_at, profiles(full_name, email)';
+  let { data: registrations, error } = await supabase
     .from('registrations')
-    .select('id, course, amount_kobo, paystack_reference, created_at, profiles(full_name, email)')
+    .select(`${base}, amount_due_kobo, payment_status, payment_method`)
     .eq('status', 'paid')
     .order('created_at', { ascending: false });
 
-  const totalKobo = (registrations || []).reduce((sum, r) => sum + (r.amount_kobo || 0), 0);
+  // Migration not run yet? Fall back to the old columns so the ledger
+  // still lists everyone (all treated as paid), and say what to run.
+  const needsMigration = !!error;
+  if (needsMigration) {
+    ({ data: registrations } = await supabase
+      .from('registrations')
+      .select(base)
+      .eq('status', 'paid')
+      .order('created_at', { ascending: false }));
+  }
+
+  const rows = (registrations || []).map((r) => ({
+    reg: r,
+    studentName: r.profiles?.full_name || r.profiles?.email || 'Unknown',
+    courseName: COURSES[r.course]?.name || r.course,
+    priceNaira: COURSES[r.course]?.priceNow || 0
+  }));
+
+  // The Overview's stat tiles link here as /admin/payments?status=pending.
+  const initialStatus = PAYMENT_STATUSES[searchParams?.status] ? searchParams.status : 'all';
 
   return (
     <div>
       <p className="eyebrow mb-2">Payments</p>
       <h1 className="mb-2 font-display text-2xl font-extrabold text-ink">Payment ledger</h1>
       <p className="mb-6 text-sm text-inkdim">
-        {registrations?.length || 0} payments · {formatNaira(totalKobo / 100)} total
+        Everyone enrolled, and where their payment stands. Click a tile to filter.
       </p>
 
-      {!registrations?.length ? (
-        <div className="card p-6 text-sm text-inkdim">No payments yet.</div>
-      ) : (
-        <div className="card overflow-hidden p-0">
-          <div className="flex flex-col divide-y divide-line">
-            {registrations.map((r) => (
-              <Link
-                key={r.id}
-                href={`/receipt/${r.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between gap-3 p-4 text-sm transition hover:bg-surfaceMuted"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-ink">{r.profiles?.full_name || r.profiles?.email}</p>
-                  <p className="truncate text-xs text-inkdim">
-                    {COURSES[r.course]?.name || r.course} · {new Date(r.created_at).toLocaleDateString('en-NG', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric'
-                    })}
-                  </p>
-                  <p className="truncate text-xs text-inkdim">Ref: {r.paystack_reference}</p>
-                </div>
-                <p className="flex-shrink-0 font-semibold text-ink">{formatNaira(r.amount_kobo / 100)}</p>
-              </Link>
-            ))}
-          </div>
+      {needsMigration && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+          Payment status isn&apos;t set up in the database yet. Run{' '}
+          <code className="font-mono text-xs">supabase/migration-payment-status.sql</code> in the Supabase SQL Editor
+          to turn it on.
         </div>
       )}
+
+      {/* key = initialStatus so following an Overview tile link (same
+          page, different ?status=) resets the filter to match the URL. */}
+      <PaymentsLedger key={initialStatus} rows={rows} initialStatus={initialStatus} />
     </div>
   );
 }

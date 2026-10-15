@@ -6,24 +6,29 @@ import { Lock, PartyPopper, CheckCircle2, Loader2, ArrowRight, ShieldCheck, Lapt
 import AutoPanImage from './AutoPanImage';
 import GoogleIcon from './icons/GoogleIcon';
 import { createClient } from '../lib/supabase/client';
-import { COURSES, MIN_AGE, isAgeEligible, formatNaira } from '../lib/courses';
+import { COURSES, getCourse, MIN_AGE, isAgeEligible, formatNaira } from '../lib/courses';
 import { LAPTOP_SPECS } from '../lib/laptop-specs';
+import { getAvailability, describeClosure } from '../lib/course-status';
+import { checkCourseOpenAction } from '../app/actions';
 
 const PAYSTACK_PUBLIC_KEY = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
 
-export default function RegisterFlow() {
+export default function RegisterFlow({ settingsByCourse }) {
   const params = useSearchParams();
-  const course = COURSES[params.get('course')] || COURSES.foundations;
+  const course = getCourse(params.get('course')) || COURSES.foundations;
   const [done, setDone] = useState(false);
 
-  if (course.comingSoon) {
+  const availability = getAvailability(settingsByCourse[course.key]);
+
+  if (!availability.open) {
+    const heading = availability.tag === 'coming_soon' ? 'Coming soon' : availability.tag === 'ended' ? 'Registration ended' : availability.tag === 'sold_out' ? 'All seats taken' : 'Registration closed';
     return (
       <main className="mx-auto flex min-h-[60vh] max-w-lg items-center px-6 text-center">
         <div className="card w-full p-8">
-          <h1 className="mb-2 font-display text-xl font-extrabold text-ink">{course.name} — Coming soon</h1>
+          <h1 className="mb-2 font-display text-xl font-extrabold text-ink">{course.name} — {heading}</h1>
           <p className="mb-5 text-sm text-inkdim">
-            This stage isn&apos;t open for registration yet. Check back soon, or
-            register for Stage 1 in the meantime.
+            {describeClosure(availability)}
+            {availability.reopenAt ? '' : ' Check back soon.'}
           </p>
           <a href="/#courses" className="cta-btn w-fit">
             Back to courses
@@ -118,6 +123,15 @@ function DetailsStep({ course, onDone }) {
       return;
     }
     setPaying(true);
+
+    // Fresh server-side check -- the admin may have closed registration
+    // since this page loaded.
+    const openCheck = await checkCourseOpenAction(course.key);
+    if (!openCheck.open) {
+      setPaying(false);
+      setStatus({ text: openCheck.message || 'Registration is closed for this course.', kind: 'error' });
+      return;
+    }
     setStatus({ text: 'Opening secure payment window\u2026', kind: 'info' });
 
     // Loaded dynamically, only here (inside a click handler, so only
@@ -127,7 +141,16 @@ function DetailsStep({ course, onDone }) {
     // statically -- Node has no `window` at build time.
     const { default: PaystackPop } = await import('@paystack/inline-js');
 
-    const reference = 'FOUNDRY_' + course.key.toUpperCase() + '_' + Date.now();
+    // A random component, not just a timestamp -- Date.now() alone is
+    // guessable (anyone who roughly knows when someone else checked out
+    // could brute-force the exact millisecond), and the reference itself
+    // used to be the only thing standing between "this reference is
+    // real" and "this reference belongs to the person submitting it".
+    // The server now also cross-checks Paystack's own recorded email
+    // against the signed-in user (see app/api/payments/verify), so this
+    // is defense in depth on top of that, not the only protection.
+    const randomPart = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+    const reference = 'FOUNDRY_' + course.key.toUpperCase() + '_' + Date.now() + '_' + randomPart;
     const popup = new PaystackPop();
     popup.newTransaction({
       key: PAYSTACK_PUBLIC_KEY,

@@ -1,8 +1,11 @@
+import { Suspense } from 'react';
 import { Inter, Syne, Racing_Sans_One } from 'next/font/google';
 import './globals.css';
 import Nav from '../components/Nav';
 import Footer from '../components/Footer';
 import ConditionalChrome from '../components/ConditionalChrome';
+import NavigationLoader from '../components/NavigationLoader';
+import { DialogProvider } from '../components/ui/DialogProvider';
 import { THEME_INIT_SCRIPT } from '../lib/theme-script';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -26,7 +29,13 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${inter.variable} ${syne.variable} ${racing.variable}`}>
+    // suppressHydrationWarning: the blocking <script> below deliberately
+    // adds the `dark` class to <html> BEFORE React hydrates (so there's
+    // no flash of the wrong theme). React then sees a class the server
+    // never rendered and warns about the mismatch. That difference is the
+    // whole point of the script, so the warning is silenced for this one
+    // element only -- it does not affect any child.
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${syne.variable} ${racing.variable}`}>
       <head>
         {/* Plain blocking <script>, NOT next/script (which defers) --
             this has to run before first paint to avoid a flash of the
@@ -36,14 +45,27 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="flex min-h-screen flex-col bg-surfaceMuted font-body text-ink antialiased">
+        {/* Suspense is required here, not optional -- NavigationLoader
+            uses useSearchParams(), and App Router requires any component
+            that does to be wrapped in a Suspense boundary (otherwise the
+            build either errors or force-opts the whole route into
+            client-side rendering). The fallback is null since there's
+            nothing to show before the loader itself even mounts. */}
+        <Suspense fallback={null}>
+          <NavigationLoader />
+        </Suspense>
         {/* Nav and Footer are still rendered here (server-side) so they
             keep reading the session cookie correctly -- ConditionalChrome
             just decides whether to show them, based on path. Portal
             pages (/dashboard, /admin) render their own sidebar shell
             instead and skip this chrome entirely. */}
-        <ConditionalChrome nav={<Nav />} footer={<Footer />}>
-          {children}
-        </ConditionalChrome>
+        {/* DialogProvider powers useDialog() -- the in-app replacement
+            for window.confirm()/alert() (components/ui/DialogProvider.jsx). */}
+        <DialogProvider>
+          <ConditionalChrome nav={<Nav />} footer={<Footer />}>
+            {children}
+          </ConditionalChrome>
+        </DialogProvider>
       </body>
     </html>
   );

@@ -13,6 +13,8 @@ export default function Receipt({
   studentName,
   studentEmail,
   paymentMethod,
+  statusLabel = 'Paid',
+  balanceKobo = 0,
   compact = false
 }) {
   return (
@@ -28,8 +30,12 @@ export default function Receipt({
           </p>
           <p className="text-xs text-inkdim">State AI Training</p>
         </div>
-        <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-          Paid
+        <div
+          className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+            balanceKobo > 0 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          }`}
+        >
+          {statusLabel}
         </div>
       </div>
 
@@ -69,6 +75,14 @@ export default function Receipt({
             {formatNaira(amountKobo / 100)}
           </span>
         </div>
+        {balanceKobo > 0 && (
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-sm text-inkdim">Balance outstanding</span>
+            <span className="font-display text-base font-semibold text-amber-700">
+              {formatNaira(balanceKobo / 100)}
+            </span>
+          </div>
+        )}
       </div>
 
       {!compact && (

@@ -1,6 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '../../../lib/supabase/server';
+import { getUser, getProfile } from '../../../lib/supabase/session';
 import { COURSES } from '../../../lib/courses';
+import { getPayment, isAdminAdded } from '../../../lib/payments';
 import { verifyPaystackTransaction, describePaystackChannel } from '../../../lib/paystack';
 import PrintButton from '../../../components/dashboard/PrintButton';
 import Receipt from '../../../components/dashboard/Receipt';
@@ -9,20 +11,13 @@ export const metadata = { title: 'Payment receipt — The Foundry' };
 
 export default async function ReceiptPage({ params }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  const { data: reg } = await supabase
-    .from('registrations')
-    .select('*')
-    .eq('id', params.id)
-    .maybeSingle();
+  const [profile, { data: reg }] = await Promise.all([
+    getProfile(user.id),
+    supabase.from('registrations').select('*').eq('id', params.id).maybeSingle()
+  ]);
 
   // The registrations_select RLS policy already limits this to the
   // owner or an admin -- this check is the same rule enforced again in
@@ -33,6 +28,10 @@ export default async function ReceiptPage({ params }) {
   }
 
   const course = COURSES[reg.course];
+  const payment = getPayment(reg);
+
+  // Nothing received (complimentary / still pending) -> nothing to receipt.
+  if (payment.receivedKobo <= 0) notFound();
 
   // Pull the actual transaction record from Paystack itself, server-side
   // with the secret key -- the same verified call the payment route
@@ -43,9 +42,12 @@ export default async function ReceiptPage({ params }) {
   // just our database's memory of it.
   let paidAt = new Date(reg.created_at);
   let amountKobo = reg.amount_kobo;
-  let paymentMethod = null;
+  let paymentMethod = payment.method; // set for manual (cash/transfer/POS) records
 
+  // Directly-added students have no Paystack transaction -- their
+  // reference is ours, so asking Paystack about it can only fail.
   try {
+    if (isAdminAdded(reg)) throw null;
     const txn = await verifyPaystackTransaction(reg.paystack_reference);
     if (txn?.status === 'success') {
       paidAt = new Date(txn.paid_at || txn.created_at || reg.created_at);
@@ -56,7 +58,7 @@ export default async function ReceiptPage({ params }) {
     // Paystack being briefly unreachable shouldn't take the receipt
     // page down -- fall back to what's already in our own DB above, so
     // the receipt still renders, just without the payment-method line.
-    console.error('Could not fetch live Paystack transaction for receipt:', err);
+    if (err) console.error('Could not fetch live Paystack transaction for receipt:', err);
   }
 
   return (
@@ -81,6 +83,8 @@ export default async function ReceiptPage({ params }) {
         studentName={user.user_metadata?.full_name || user.user_metadata?.name || user.email}
         studentEmail={user.email}
         paymentMethod={paymentMethod}
+        statusLabel={payment.label}
+        balanceKobo={payment.balanceKobo}
       />
     </main>
   );

@@ -50,7 +50,7 @@ function DayRow({ day, unlocked }) {
   );
 }
 
-export default function NotesAccordion({ notes, unlockedDays }) {
+export default function NotesAccordion({ notes, unlockedDays, hideWeekHeading = false }) {
   const weeks = [];
   notes.forEach((day) => {
     let week = weeks.find((w) => w.week === day.week);
@@ -65,9 +65,11 @@ export default function NotesAccordion({ notes, unlockedDays }) {
     <div className="flex flex-col gap-6">
       {weeks.map((w) => (
         <section key={w.week}>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-inkdim">
-            Week {w.week} — {w.title}
-          </p>
+          {!hideWeekHeading && (
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-inkdim">
+              Week {w.week} — {w.title}
+            </p>
+          )}
           <div className="card overflow-hidden p-0">
             {w.days.map((day) => (
               <DayRow key={day.day} day={day} unlocked={unlockedDays.has(day.day)} />

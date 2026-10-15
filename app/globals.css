@@ -126,3 +126,39 @@
     transform: none;
   }
 }
+
+/* Top-of-page navigation progress bar (components/NavigationLoader.jsx)
+   -- an indeterminate sliding shimmer, not a real percentage (there's no
+   way to know actual progress for a page transition), which is the
+   standard pattern for this: GitHub, YouTube, Vercel itself all use the
+   same "something is happening, hang tight" bar rather than a fake
+   number. */
+@keyframes nav-loader-slide {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+.nav-loader-bar {
+  animation: nav-loader-slide 1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-loader-bar {
+    animation: none;
+    left: 0;
+    width: 100%;
+    /* Static full-width bar instead of a sliding segment -- still
+       communicates "loading" without motion. */
+  }
+}
+
+
+/* In-app confirm/alert dialogs (components/ui/DialogProvider.jsx). */
+@keyframes dialog-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialog-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dialog-fade { animation: dialog-fade 120ms ease-out; }
+.dialog-pop { animation: dialog-pop 160ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .dialog-fade, .dialog-pop { animation: none; }
+}

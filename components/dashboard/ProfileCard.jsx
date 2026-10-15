@@ -1,4 +1,4 @@
-import { Crown, GraduationCap, Mail, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Crown, GraduationCap, Presentation, Mail, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { COURSES } from '../../lib/courses';
 
 // Deliberately scoped to just this card (see the comment in
@@ -10,6 +10,7 @@ import { COURSES } from '../../lib/courses';
 // so it reads at a glance, same idea as the course-stage colors below.
 const ROLE_STYLES = {
   admin: { label: 'Admin', icon: Crown, className: 'border-[#f2c94c]/40 bg-[#3a2a04] text-[#f2c94c]' },
+  teacher: { label: 'Teacher', icon: Presentation, className: 'border-[#38bdf8]/40 bg-[#082433] text-[#38bdf8]' },
   student: { label: 'Student', icon: GraduationCap, className: 'border-[#34d399]/40 bg-[#062f2a] text-[#34d399]' }
 };
 
@@ -24,7 +25,7 @@ function initials(name) {
 }
 
 export default function ProfileCard({ profile, registrations = [] }) {
-  const role = profile?.role === 'admin' ? 'admin' : 'student';
+  const role = profile?.role === 'admin' ? 'admin' : profile?.role === 'teacher' ? 'teacher' : 'student';
   const roleStyle = ROLE_STYLES[role];
   const RoleIcon = roleStyle.icon;
 
@@ -41,7 +42,7 @@ export default function ProfileCard({ profile, registrations = [] }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="truncate font-display text-xl font-extrabold text-white sm:text-2xl">
-              {profile?.full_name || 'Student'}
+              {profile?.full_name || ROLE_STYLES[role].label}
             </h1>
             <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${roleStyle.className}`}>
               <RoleIcon className="h-3 w-3" /> {roleStyle.label}
