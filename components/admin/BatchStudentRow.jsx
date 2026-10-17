@@ -2,14 +2,15 @@
 
 import { useTransition } from 'react';
 import { Trash2 } from 'lucide-react';
-import { removeFromBatch, setBlocked, moveStudentToBatch, adminDeleteStudent } from '../../app/admin/actions';
+import { removeFromBatch, setRegistrationBlocked, moveStudentToBatch, deleteRegistration } from '../../app/admin/actions';
 import { useDialog } from '../ui/DialogProvider';
 import SourceBadge from './SourceBadge';
 import PaymentChip from './PaymentChip';
 
-// One student inside a batch (or in the "unassigned" list): block,
-// move to another batch of the same course, remove from the batch, or
-// delete the account permanently. `otherBatches` is already limited to
+// One student inside a batch (or in the "unassigned" list). Every button
+// here affects ONLY this course/batch -- block them here, move them,
+// remove them from it, or delete this registration -- never their account
+// or their other courses (account-wide block/delete live on the Students page). `otherBatches` is already limited to
 // the same course by the page: [{ id, label, count, capacity }].
 export default function BatchStudentRow({ student: s, otherBatches, selected, onToggle }) {
   const [isPending, startTransition] = useTransition();
@@ -40,8 +41,8 @@ export default function BatchStudentRow({ student: s, otherBatches, selected, on
 
   async function handleRemove() {
     const ok = await confirm({
-      title: `Remove ${s.fullName} from this batch?`,
-      message: 'They lose access to this course. Their payment record is kept.',
+      title: `Remove ${s.fullName} from ${s.batchLabel || 'this batch'}?`,
+      message: 'They lose access to this course only. Their account, any other course and the payment record are kept.',
       confirmLabel: 'Remove',
       tone: 'danger'
     });
@@ -50,12 +51,12 @@ export default function BatchStudentRow({ student: s, otherBatches, selected, on
 
   async function handleDelete() {
     const ok = await confirm({
-      title: `Delete ${s.fullName} permanently?`,
-      message: 'Their account and everything tied to it will be erased from the database. This cannot be undone.',
-      confirmLabel: 'Delete permanently',
+      title: `Delete ${s.fullName}\u2019s registration for this course?`,
+      message: 'This erases only this course registration and its payment record. Their account and other courses stay. This cannot be undone.',
+      confirmLabel: 'Delete registration',
       tone: 'danger'
     });
-    if (ok) run(adminDeleteStudent, s.profileId);
+    if (ok) run(deleteRegistration, s.registrationId);
   }
 
   const small = 'rounded-md border border-line px-2.5 py-1 text-xs text-inkdim transition hover:border-red-300 hover:text-red-600 disabled:opacity-40';
@@ -77,9 +78,14 @@ export default function BatchStudentRow({ student: s, otherBatches, selected, on
           <p className="truncate text-sm font-medium text-ink">{s.fullName}</p>
           <SourceBadge source={s.source} />
           <PaymentChip payment={s.payment} />
-          {s.blocked && (
+          {s.regBlocked && (
             <span className="flex-shrink-0 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-600">
-              Blocked
+              Blocked here
+            </span>
+          )}
+          {s.blocked && (
+            <span className="flex-shrink-0 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-600" title="Their whole account is blocked (Students page)">
+              Account blocked
             </span>
           )}
         </div>
@@ -104,11 +110,11 @@ export default function BatchStudentRow({ student: s, otherBatches, selected, on
             </option>
           ))}
         </select>
-        <button onClick={() => run(setBlocked, s.profileId, !s.blocked)} disabled={isPending} className={small}>
-          {s.blocked ? 'Unblock' : 'Block'}
+        <button onClick={() => run(setRegistrationBlocked, s.registrationId, !s.regBlocked)} disabled={isPending} className={small} title="Only affects this course">
+          {s.regBlocked ? 'Unblock here' : 'Block here'}
         </button>
         {s.batchId && (
-          <button onClick={handleRemove} disabled={isPending} className={small}>
+          <button onClick={handleRemove} disabled={isPending} className={small} title="Only affects this course">
             Remove
           </button>
         )}
@@ -116,7 +122,8 @@ export default function BatchStudentRow({ student: s, otherBatches, selected, on
           onClick={handleDelete}
           disabled={isPending}
           className="rounded-md border border-line p-1.5 text-inkdim transition hover:border-red-300 hover:text-red-600 disabled:opacity-40"
-          aria-label={`Delete ${s.fullName} permanently`}
+          aria-label={`Delete ${s.fullName}'s registration for this course`}
+          title="Delete this course registration only"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

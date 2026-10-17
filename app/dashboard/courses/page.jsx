@@ -35,7 +35,7 @@ export default async function CoursesPage() {
       )}
 
       <div className="flex flex-col gap-6">
-        {registrations?.map((reg) => {
+        {registrations?.filter((r) => !r.blocked).map((reg) => {
           const course = COURSES[reg.course];
           const batch = reg.batches;
           const appliesHere = (item) => item.batch_id === null || item.batch_id === batch?.id;

@@ -58,6 +58,7 @@ function DetailsStep({ course, onDone }) {
   const [paying, setPaying] = useState(false);
   const [status, setStatus] = useState({ text: '', kind: '' });
   const [alreadyPaid, setAlreadyPaid] = useState(false);
+  const [otherCourses, setOtherCourses] = useState([]); // courses this same account already holds
 
   // Runs once on load, including right after landing back from Google's
   // redirect (see app/auth/callback/route.js). Google itself is the
@@ -103,12 +104,14 @@ function DetailsStep({ course, onDone }) {
     const supabase = createClient();
     supabase
       .from('registrations')
-      .select('id')
+      .select('course')
       .eq('user_id', user.id)
-      .eq('course', course.key)
       .eq('status', 'paid')
-      .maybeSingle()
-      .then(({ data }) => setAlreadyPaid(!!data));
+      .then(({ data }) => {
+        const held = (data || []).map((r) => r.course);
+        setAlreadyPaid(held.includes(course.key));
+        setOtherCourses(held.filter((c) => c !== course.key));
+      });
   }, [user, course.key]);
 
   const dobEntered = dob !== '';
@@ -306,6 +309,12 @@ function DetailsStep({ course, onDone }) {
           </span>
         </label>
 
+        {!alreadyPaid && otherCourses.length > 0 && (
+          <p className="mb-4 rounded-lg border border-line bg-surfaceMuted p-3 text-sm text-inkdim">
+            You&apos;re already a student with <span className="font-medium text-ink">{user.email}</span>. Paying here adds{' '}
+            <span className="font-medium text-ink">{course.name}</span> to the same account &mdash; no new sign-up needed.
+          </p>
+        )}
         {alreadyPaid ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center text-sm text-emerald-700">
             You&apos;ve already registered for {course.name}.{' '}

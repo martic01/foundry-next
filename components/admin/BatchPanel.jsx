@@ -10,6 +10,7 @@ import BatchStudentRow from './BatchStudentRow';
 import BulkMoveBar from './BulkMoveBar';
 import { useSelection } from './useSelection';
 import { useDialog } from '../ui/DialogProvider';
+import SearchBox, { matchesQuery } from '../ui/SearchBox';
 
 // One batch: rename it, set its start date, run its 9-week clock, and
 // manage the students in it. Announcements, class links and videos for a
@@ -23,6 +24,7 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
   const [editing, setEditing] = useState(false);
   const [showStudents, setShowStudents] = useState(true);
   const [payFilter, setPayFilter] = useState('all');
+  const [query, setQuery] = useState('');
   const [isPending, startTransition] = useTransition();
   const sel = useSelection();
   const [status, setStatus] = useState({ text: '', kind: '' });
@@ -82,7 +84,10 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
     acc[k] = students.filter((s) => s.payment?.status === k).length;
     return acc;
   }, {});
-  const shownStudents = payFilter === 'all' ? students : students.filter((s) => s.payment?.status === payFilter);
+  const shownStudents = students.filter(
+    (s) => (payFilter === 'all' || s.payment?.status === payFilter) && matchesQuery(query, s.fullName, s.email)
+  );
+  const narrowed = payFilter !== 'all' || query.trim() !== '';
 
   const btn =
     'inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-xs font-medium transition disabled:pointer-events-none disabled:opacity-40';
@@ -152,6 +157,9 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
       <div className="mb-5 rounded-lg border border-line bg-surfaceMuted p-4">
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-inkdim">Teachers</p>
         <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center rounded-full border border-brand/30 bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand" title="The admin is in every batch but is not counted as a student">
+            Admin · every batch
+          </span>
           {assigned.map((t) => (
             <span key={t.id} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface py-0.5 pl-2.5 pr-1 text-xs font-medium text-ink">
               <Presentation className="h-3 w-3 text-brand" /> {t.full_name}
@@ -267,6 +275,9 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
             )}
           </div>
         )}
+        {showStudents && students.length > 0 && (
+          <SearchBox value={query} onChange={setQuery} placeholder="Search this batch by name or email" label="Search students in this batch" className="mb-2" />
+        )}
         {showStudents && !!shownStudents.length && (
           <label className="mb-2 flex w-fit items-center gap-2 text-xs text-inkdim">
             <input
@@ -275,7 +286,7 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
               checked={shownStudents.every((s) => sel.has(s.registrationId))}
               onChange={(e) => (e.target.checked ? sel.setAll([...sel.ids, ...shownStudents.map((s) => s.registrationId)]) : sel.setAll([...sel.ids].filter((id) => !shownStudents.some((s) => s.registrationId === id))))}
             />
-            Select all{payFilter === 'all' ? '' : ' shown'}
+            Select all{narrowed ? ' shown' : ''}
           </label>
         )}
         {showStudents && (

@@ -12,11 +12,11 @@ export default async function NotesPage() {
   const user = await getUser();
 
   const [{ data: registrations }, { data: unlocks }] = await Promise.all([
-    supabase.from('registrations').select('course').eq('user_id', user.id).eq('status', 'paid'),
+    supabase.from('registrations').select('*').eq('user_id', user.id).eq('status', 'paid'),
     supabase.from('note_unlocks').select('course, day')
   ]);
 
-  const courseKeys = [...new Set((registrations || []).map((r) => r.course))];
+  const courseKeys = [...new Set((registrations || []).filter((r) => !r.blocked).map((r) => r.course))];
   const unlockedByCourse = {};
   (unlocks || []).forEach((u) => {
     (unlockedByCourse[u.course] ||= new Set()).add(u.day);

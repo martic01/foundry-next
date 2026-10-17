@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { BookOpen, LayoutDashboard, Crown, LogOut, Briefcase } from 'lucide-react';
 import GoogleIcon from './icons/GoogleIcon';
-import { getUser, getProfile } from '../lib/supabase/session';
+import { getUserSafe as getUser, getProfileSafe as getProfile } from '../lib/supabase/session';
 import { signOutAction } from '../app/actions';
 
 // PORTFOLIO_URL points back at the main (separate, static) portfolio site

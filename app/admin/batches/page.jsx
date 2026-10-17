@@ -4,13 +4,14 @@ import { getPayment, getSource } from '../../../lib/payments';
 import BatchPanel from '../../../components/admin/BatchPanel';
 import UnassignedStudents from '../../../components/admin/UnassignedStudents';
 import CreateBatchForm from '../../../components/admin/CreateBatchForm';
+import StudentFinder from '../../../components/admin/StudentFinder';
 
 export const metadata = { title: 'Batches — The Foundry' };
 
 export default async function BatchesPage() {
   const supabase = await createClient();
 
-  const regBase = 'id, course, batch_id, age, paystack_reference, profiles(id, full_name, email, blocked)';
+  const regBase = 'id, course, batch_id, age, paystack_reference, profiles(id, full_name, email, blocked, role)';
   const [{ data: batches }, { data: teacherRows }, { data: assignments }, withPayment] = await Promise.all([
     supabase.from('batches').select('*').order('course').order('created_at'),
     supabase.from('profiles').select('id, full_name').eq('role', 'teacher').order('full_name'),
@@ -19,18 +20,27 @@ export default async function BatchesPage() {
   ]);
   // If the payment-status migration hasn't been run, that select errors --
   // fall back to the old columns so every student still shows.
-  const registrations = withPayment.error
+  // The admin (and teachers) are never counted as students.
+  const registrations = (withPayment.error
     ? (await supabase.from('registrations').select(regBase).eq('status', 'paid')).data
-    : withPayment.data;
+    : withPayment.data || []
+  )?.filter((r) => !r.profiles?.role || r.profiles.role === 'student');
+
+  // Per-course block flags, read separately so a missing column (migration
+  // not run yet) can't break the rest of the page.
+  const blockedRes = await supabase.from('registrations').select('id, blocked').eq('status', 'paid');
+  const blockedIds = new Set((blockedRes.error ? [] : blockedRes.data || []).filter((r) => r.blocked).map((r) => r.id));
 
   const toStudent = (r) => ({
     registrationId: r.id,
     profileId: r.profiles?.id,
     batchId: r.batch_id,
     course: r.course,
+    batchLabel: (batches || []).find((b) => b.id === r.batch_id)?.label || 'Unassigned',
     fullName: r.profiles?.full_name || 'Unknown',
     email: r.profiles?.email || '',
     blocked: r.profiles?.blocked || false,
+    regBlocked: blockedIds.has(r.id),
     age: r.age,
     source: getSource(r),
     payment: (({ status, label, tone, detail, balanceKobo }) => ({ status, label, tone, detail, balanceKobo }))(getPayment(r))
@@ -70,6 +80,11 @@ export default async function BatchesPage() {
       </p>
 
       <CreateBatchForm courses={Object.values(COURSES).map((c) => ({ key: c.key, name: c.name }))} teachers={teachers} />
+
+      <StudentFinder
+        students={(registrations || []).map(toStudent)}
+        batchChoicesByCourse={Object.fromEntries(Object.keys(COURSES).map((k) => [k, batchChoices(k, null)]))}
+      />
 
       {!!unassigned.length && (
         <UnassignedStudents

@@ -16,7 +16,7 @@ export default async function TeacherAnnouncements() {
     const { data } = await supabase
       .from('messages')
       .select('*')
-      .in('batch_id', batches.map((b) => b.id))
+      .or(`batch_id.in.(${batches.map((b) => b.id).join(',')}),batch_id.is.null`)
       .order('created_at', { ascending: false });
     messages = data || [];
   }
@@ -33,7 +33,7 @@ export default async function TeacherAnnouncements() {
         <NoBatches />
       ) : (
         <div className="card p-5">
-          <AnnouncementManager messages={messages} audienceOptions={audienceOptionsFor(batches)} />
+          <AnnouncementManager messages={messages} audienceOptions={audienceOptionsFor(batches)} viewer={{ role: 'teacher', userId: user.id }} />
         </div>
       )}
     </div>

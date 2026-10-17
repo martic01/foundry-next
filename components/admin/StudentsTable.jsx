@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { Trash2, Search } from 'lucide-react';
-import { setBlocked, adminDeleteStudent, moveStudentToBatch } from '../../app/admin/actions';
+import { setBlocked, adminDeleteStudent, moveStudentToBatch, setRegistrationBlocked, removeFromBatch, deleteRegistration } from '../../app/admin/actions';
 import { useDialog } from '../ui/DialogProvider';
 import SourceBadge from './SourceBadge';
 import PaymentChip from './PaymentChip';
@@ -55,6 +55,23 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
     startTransition(async () => {
       const res = await moveStudentToBatch(course.registrationId, targetId);
       if (res?.error) await alert({ title: 'Couldn\u2019t move them', message: res.error, tone: 'error' });
+    });
+  }
+
+  // Per-course actions: only this course/batch, never the account.
+  async function courseAction(student, course, kind) {
+    const where = course.label;
+    const ask = {
+      remove: { title: `Remove ${student.full_name || 'this student'} from ${where}?`, message: 'They lose access to this course only. Their account, other courses and the payment record are kept.', confirmLabel: 'Remove', tone: 'danger' },
+      delete: { title: `Delete the ${where} registration?`, message: 'Erases only this course registration and its payment record. Their account and other courses stay. This cannot be undone.', confirmLabel: 'Delete registration', tone: 'danger' }
+    }[kind];
+    if (ask && !(await confirm(ask))) return;
+    startTransition(async () => {
+      const res =
+        kind === 'block' ? await setRegistrationBlocked(course.registrationId, !course.blocked)
+        : kind === 'remove' ? await removeFromBatch(course.registrationId)
+        : await deleteRegistration(course.registrationId);
+      if (res?.error) await alert({ title: 'Couldn\u2019t do that', message: res.error, tone: 'error' });
     });
   }
 
@@ -203,6 +220,20 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
                             ))}
                           </select>
                         </label>
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          {c.blocked && <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-600">Blocked here</span>}
+                          <button type="button" disabled={isPending} onClick={() => courseAction(s, c, 'block')} className="rounded-md border border-line px-2 py-0.5 text-[11px] hover:border-red-300 hover:text-red-600" title="Only this course">
+                            {c.blocked ? 'Unblock here' : 'Block here'}
+                          </button>
+                          {c.batchId && (
+                            <button type="button" disabled={isPending} onClick={() => courseAction(s, c, 'remove')} className="rounded-md border border-line px-2 py-0.5 text-[11px] hover:border-red-300 hover:text-red-600" title="Only this course">
+                              Remove
+                            </button>
+                          )}
+                          <button type="button" disabled={isPending} onClick={() => courseAction(s, c, 'delete')} className="rounded-md border border-line px-2 py-0.5 text-[11px] hover:border-red-300 hover:text-red-600" title="Delete this course registration only">
+                            Delete
+                          </button>
+                        </span>
                         <span className="text-[11px]">
                           Teacher: {c.teachers.length ? <span className="font-medium text-ink">{c.teachers.join(', ')}</span> : 'none assigned'}
                         </span>
@@ -220,13 +251,14 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
                 disabled={isPending}
                 className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-inkdim hover:border-red-300 hover:text-red-600"
               >
-                {s.blocked ? 'Unblock' : 'Block'}
+                {s.blocked ? 'Unblock account' : 'Block account'}
               </button>
               <button
                 onClick={() => handleDelete(s.id, s.full_name)}
                 disabled={isPending}
                 className="rounded-md border border-line p-1.5 text-inkdim hover:border-red-300 hover:text-red-600"
-                aria-label="Delete student"
+                aria-label="Delete student account (all courses)"
+                title="Delete the whole account and every course"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

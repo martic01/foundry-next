@@ -23,6 +23,9 @@ export default async function StudentsPage() {
     ? (await supabase.from('registrations').select(regBase).eq('status', 'paid')).data
     : withPayment.data;
 
+  const blockedRes = await supabase.from('registrations').select('id, blocked').eq('status', 'paid');
+  const blockedIds = new Set((blockedRes.error ? [] : blockedRes.data || []).filter((r) => r.blocked).map((r) => r.id));
+
   // Who teaches each batch, and how full each batch is -- so a student's
   // row can show their teacher(s) and offer the other batches of that
   // course to move them to.
@@ -55,6 +58,7 @@ export default async function StudentsPage() {
       registrationId: r.id,
       courseKey: r.course,
       batchId: r.batch_id,
+      blocked: blockedIds.has(r.id),
       teachers: teachersByBatch[r.batch_id] || [],
       label: r.batches?.label ? `${name} (${r.batches.label})` : name,
       source: getSource(r),

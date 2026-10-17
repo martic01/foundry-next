@@ -10,6 +10,9 @@ the same transaction that adds it).
 4. `migration-teacher-role.sql` — ALONE (adds the teacher role)
 5. `migration-teachers.sql` (batch_teachers, manual batches, teacher access rules)
 6. `migration-placeholder-notes.sql` (unlocks Day 1 of the placeholder notes)
+7. `migration-roles-expiry.sql` (admin protection, expiry dates, teacher ownership + reports)
+8. `migration-student-reports.sql` (lets teachers report a student)
+9. `migration-per-course-access.sql` (block a student in one course only)
 
-A FRESH database: run `schema.sql`, then 3, 5, 6 and finally 1 (steps 2 and 4 are
+A FRESH database: run `schema.sql`, then 3, 5, 6, 7, 8, 9 and finally 1 (steps 2 and 4 are
 already built into `schema.sql`).

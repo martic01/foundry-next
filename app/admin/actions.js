@@ -11,6 +11,7 @@ import { parsePaymentInput, isAdminAdded, ADMIN_REF_PREFIX } from '../../lib/pay
 import { resolveStudentAccount, absorbShellAccounts, resolveTeacherAccount } from '../../lib/accounts';
 import { COURSE_SETTINGS_TAG } from '../../lib/course-settings';
 import { notifyStudents } from '../../lib/notify';
+import { parseExpiry } from '../../lib/expiry';
 import { destroyCloudinaryVideo, publicIdFromCloudinaryUrl } from '../../lib/cloudinary-server';
 
 // Every function here uses the caller's OWN session (via the regular,
@@ -70,13 +71,24 @@ function staffAudience(audience, staff) {
   return aud;
 }
 
-// For edit/delete of an existing row: a teacher may only touch rows
-// aimed at one of their batches.
+// For edit/delete of an existing row: the admin may touch anything; a
+// teacher only what THEY posted, in a batch they teach. (Anything the
+// admin or another teacher posted can only be reported -- reportContent.)
+const OWNER_COLUMN = { class_links: 'created_by', class_videos: 'created_by', messages: 'sender_id' };
 async function staffOwnsRow(staff, supabase, table, id) {
   if (staff.role === 'admin') return null;
-  const { data } = await supabase.from(table).select('batch_id').eq('id', id).maybeSingle();
+  const ownerCol = OWNER_COLUMN[table];
+  const { data } = await supabase.from(table).select(`batch_id, ${ownerCol}`).eq('id', id).maybeSingle();
   if (!data || !data.batch_id || !staff.batchIds.includes(data.batch_id)) return 'You can only change items for a batch you teach.';
+  if (data[ownerCol] !== staff.userId) return 'You can only change what you posted yourself. Use Report to flag this to the admin.';
   return null;
+}
+
+// Is this account an admin? Admins can't be blocked, removed or deleted.
+async function isAdminAccount(client, userId) {
+  if (!userId) return false;
+  const { data } = await client.from('profiles').select('role').eq('id', userId).maybeSingle();
+  return data?.role === 'admin';
 }
 
 export async function removeFromBatch(registrationId) {
@@ -84,6 +96,8 @@ export async function removeFromBatch(registrationId) {
   if (!authCheck.ok) return { error: authCheck.error };
 
   const supabase = await createClient();
+  const { data: reg } = await supabase.from('registrations').select('user_id').eq('id', registrationId).maybeSingle();
+  if (await isAdminAccount(supabase, reg?.user_id)) return { error: 'An admin account can\u2019t be removed from a batch \u2014 the admin belongs to every batch.' };
   const { error } = await supabase
     .from('registrations')
     .update({ status: 'removed', batch_id: null })
@@ -99,11 +113,57 @@ export async function removeFromBatch(registrationId) {
   return { ok: true };
 }
 
+// ---- Per-course actions: these touch ONE registration (one course in one
+// batch) and never the student's account or their other courses. ----
+
+// Block / unblock a student in just this course.
+export async function setRegistrationBlocked(registrationId, blocked) {
+  const authCheck = await requireAdmin();
+  if (!authCheck.ok) return { error: authCheck.error };
+  if (typeof registrationId !== 'string' || !UUID_RE.test(registrationId)) return { error: 'Unknown registration.' };
+
+  const supabase = await createClient();
+  const { data: reg } = await supabase.from('registrations').select('user_id').eq('id', registrationId).maybeSingle();
+  if (!reg) return { error: 'Registration not found.' };
+  if (blocked && (await isAdminAccount(supabase, reg.user_id))) return { error: 'An admin account can\u2019t be blocked.' };
+  const { error } = await supabase.from('registrations').update({ blocked: !!blocked }).eq('id', registrationId);
+  if (error) {
+    return {
+      error: /blocked/.test(error.message)
+        ? 'Per-course blocking isn\u2019t set up yet \u2014 run supabase/migration-per-course-access.sql.'
+        : error.message
+    };
+  }
+  revalidatePath('/admin', 'layout');
+  revalidatePath('/dashboard', 'layout');
+  return { ok: true };
+}
+
+// Delete this one registration (this course only). The student's account
+// and their other courses are untouched. Use "Remove" instead to keep the
+// payment record.
+export async function deleteRegistration(registrationId) {
+  const authCheck = await requireAdmin();
+  if (!authCheck.ok) return { error: authCheck.error };
+  if (typeof registrationId !== 'string' || !UUID_RE.test(registrationId)) return { error: 'Unknown registration.' };
+
+  const admin = createAdminClient();
+  const { data: reg } = await admin.from('registrations').select('user_id').eq('id', registrationId).maybeSingle();
+  if (!reg) return { error: 'Registration not found.' };
+  if (await isAdminAccount(admin, reg.user_id)) return { error: 'An admin account can\u2019t be removed.' };
+  const { error } = await admin.from('registrations').delete().eq('id', registrationId);
+  if (error) return { error: error.message };
+  revalidatePath('/admin', 'layout');
+  revalidatePath('/dashboard', 'layout');
+  return { ok: true };
+}
+
 export async function setBlocked(profileId, blocked) {
   const authCheck = await requireAdmin();
   if (!authCheck.ok) return { error: authCheck.error };
 
   const supabase = await createClient();
+  if (blocked && (await isAdminAccount(supabase, profileId))) return { error: 'An admin account can\u2019t be blocked.' };
   const { error } = await supabase
     .from('profiles')
     .update({ blocked })
@@ -448,13 +508,15 @@ export async function moveStudentsToBatch(registrationIds, targetBatchId) {
 
 // ---------- Class links ----------
 
-export async function addClassLink(audience, title, rawUrl) {
+export async function addClassLink(audience, title, rawUrl, expiresAt) {
   const staff = await requireStaff();
   if (!staff.ok) return { error: staff.error };
   const aud = staffAudience(audience, staff);
   if (aud.error) return { error: aud.error };
   const parsed = parseUrl(rawUrl);
   if (parsed.error) return { error: parsed.error };
+  const exp = parseExpiry(expiresAt);
+  if (exp.error) return { error: exp.error };
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -462,7 +524,9 @@ export async function addClassLink(audience, title, rawUrl) {
     batch_id: aud.batchId,
     title: String(title || '').trim().slice(0, 200) || null,
     url: parsed.url,
-    updated_by: user?.id
+    created_by: user?.id,
+    updated_by: user?.id,
+    expires_at: exp.value
   });
   if (error) return { error: error.message };
   await notifyStudents(supabase, { batchId: aud.batchId }, {
@@ -476,13 +540,15 @@ export async function addClassLink(audience, title, rawUrl) {
 }
 
 // "Replace" a link = edit its URL (and/or its title and audience).
-export async function updateClassLink(linkId, { audience, title, url }) {
+export async function updateClassLink(linkId, { audience, title, url, expiresAt }) {
   const staff = await requireStaff();
   if (!staff.ok) return { error: staff.error };
   const aud = staffAudience(audience, staff);
   if (aud.error) return { error: aud.error };
   const parsed = parseUrl(url);
   if (parsed.error) return { error: parsed.error };
+  const exp = parseExpiry(expiresAt);
+  if (exp.error) return { error: exp.error };
 
   const supabase = await createClient();
   const denied = await staffOwnsRow(staff, supabase, 'class_links', linkId);
@@ -494,6 +560,7 @@ export async function updateClassLink(linkId, { audience, title, url }) {
       batch_id: aud.batchId,
       title: String(title || '').trim().slice(0, 200) || null,
       url: parsed.url,
+      expires_at: exp.value,
       updated_at: new Date().toISOString(),
       updated_by: user?.id
     })
@@ -518,7 +585,7 @@ export async function deleteClassLink(linkId) {
 
 // ---------- Announcements ----------
 
-export async function postAnnouncement(audience, content) {
+export async function postAnnouncement(audience, content, expiresAt) {
   const staff = await requireStaff();
   if (!staff.ok) return { error: staff.error };
   const aud = staffAudience(audience, staff);
@@ -526,12 +593,14 @@ export async function postAnnouncement(audience, content) {
   const text = String(content || '').trim();
   if (!text) return { error: 'Write something to announce.' };
   if (text.length > 5000) return { error: 'Announcement is too long (max 5000).' };
+  const exp = parseExpiry(expiresAt);
+  if (exp.error) return { error: exp.error };
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: posted, error } = await supabase
     .from('messages')
-    .insert({ batch_id: aud.batchId, sender_id: user?.id, content: text })
+    .insert({ batch_id: aud.batchId, sender_id: user?.id, content: text, expires_at: exp.value })
     .select('id')
     .single();
   if (error) return { error: error.message };
@@ -547,7 +616,7 @@ export async function postAnnouncement(audience, content) {
   return { ok: true };
 }
 
-export async function updateAnnouncement(messageId, { audience, content }) {
+export async function updateAnnouncement(messageId, { audience, content, expiresAt }) {
   const staff = await requireStaff();
   if (!staff.ok) return { error: staff.error };
   const aud = staffAudience(audience, staff);
@@ -555,13 +624,15 @@ export async function updateAnnouncement(messageId, { audience, content }) {
   const text = String(content || '').trim();
   if (!text) return { error: 'An announcement can\u2019t be empty.' };
   if (text.length > 5000) return { error: 'Announcement is too long (max 5000).' };
+  const exp = parseExpiry(expiresAt);
+  if (exp.error) return { error: exp.error };
 
   const supabase = await createClient();
   const denied = await staffOwnsRow(staff, supabase, 'messages', messageId);
   if (denied) return { error: denied };
   const { error } = await supabase
     .from('messages')
-    .update({ batch_id: aud.batchId, content: text, updated_at: new Date().toISOString() })
+    .update({ batch_id: aud.batchId, content: text, expires_at: exp.value, updated_at: new Date().toISOString() })
     .eq('id', messageId);
   if (error) return { error: error.message };
   refreshEverything();
@@ -587,7 +658,7 @@ export async function deleteAnnouncement(messageId) {
 // this runs (components/admin/ClassVideoManager.jsx uploads it directly
 // from the browser via lib/cloudinary.js) -- this only ever records the
 // resulting URL.
-export async function addClassVideo(audience, title, description, cloudinaryUrl, cloudinaryPublicId) {
+export async function addClassVideo(audience, title, description, cloudinaryUrl, cloudinaryPublicId, expiresAt) {
   const staff = await requireStaff();
   if (!staff.ok) return { error: staff.error };
   const aud = staffAudience(audience, staff);
@@ -598,6 +669,8 @@ export async function addClassVideo(audience, title, description, cloudinaryUrl,
   const videoUrl = parseCloudinaryVideoUrl(cloudinaryUrl, process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
   if (!videoUrl) return { error: 'Video URL must be an https Cloudinary video from this account.' };
   if (cloudinaryPublicId && !isPlausiblePublicId(cloudinaryPublicId)) return { error: 'Invalid video id.' };
+  const exp = parseExpiry(expiresAt);
+  if (exp.error) return { error: exp.error };
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -607,7 +680,8 @@ export async function addClassVideo(audience, title, description, cloudinaryUrl,
     description: String(description || '').trim() || null,
     cloudinary_url: videoUrl,
     cloudinary_public_id: cloudinaryPublicId || null,
-    created_by: user?.id
+    created_by: user?.id,
+    expires_at: exp.value
   });
   if (error) return { error: error.message };
   await notifyStudents(supabase, { batchId: aud.batchId }, {
@@ -622,12 +696,14 @@ export async function addClassVideo(audience, title, description, cloudinaryUrl,
 
 // Edit what a video says and who it shows for. (The file itself can't
 // be swapped -- delete and re-upload for that.)
-export async function updateClassVideo(videoId, { audience, title, description }) {
+export async function updateClassVideo(videoId, { audience, title, description, expiresAt }) {
   const staff = await requireStaff();
   if (!staff.ok) return { error: staff.error };
   const aud = staffAudience(audience, staff);
   if (aud.error) return { error: aud.error };
   if (!String(title || '').trim()) return { error: 'Give the video a title.' };
+  const exp = parseExpiry(expiresAt);
+  if (exp.error) return { error: exp.error };
 
   const supabase = await createClient();
   const denied = await staffOwnsRow(staff, supabase, 'class_videos', videoId);
@@ -638,6 +714,7 @@ export async function updateClassVideo(videoId, { audience, title, description }
       batch_id: aud.batchId,
       title: String(title).trim(),
       description: String(description || '').trim() || null,
+      expires_at: exp.value,
       updated_at: new Date().toISOString()
     })
     .eq('id', videoId);
@@ -686,6 +763,135 @@ export async function discardCloudinaryUpload(publicId) {
   if (inUse?.length) return { error: 'That file is still in use.' };
   const gone = await destroyCloudinaryVideo(publicId);
   return gone.ok ? { ok: true } : { error: gone.error };
+}
+
+// ---------- Reports (teacher -> admin) ----------
+
+const REPORT_TABLES = {
+  link: { table: 'class_links', title: (r) => r.title || 'Class link' },
+  video: { table: 'class_videos', title: (r) => r.title },
+  announcement: { table: 'messages', title: (r) => String(r.content || '').slice(0, 80) }
+};
+
+// A teacher can't delete or edit what the admin (or another teacher)
+// posted -- but they can report it. The admin gets a Reports entry plus
+// a pop-up alert.
+export async function reportContent(kind, itemId, message) {
+  const staff = await requireStaff();
+  if (!staff.ok) return { error: staff.error };
+  if (staff.role !== 'teacher') return { error: 'Only teachers send reports.' };
+  const spec = kind === 'student' ? { title: (r) => r.title } : REPORT_TABLES[kind];
+  if (!spec) return { error: 'Unknown item type.' };
+  if (typeof itemId !== 'string' || !UUID_RE.test(itemId)) return { error: 'Unknown item.' };
+  const text = String(message || '').trim();
+  if (text.length < 3) return { error: 'Tell the admin what\u2019s wrong.' };
+  if (text.length > 1000) return { error: 'Keep the report under 1000 characters.' };
+
+  const supabase = await createClient();
+  let item;
+  if (kind === 'student') {
+    // A teacher can report only a student who is in one of their own
+    // batches (and never an admin or another teacher).
+    if (!staff.batchIds?.length) return { error: 'That student isn\u2019t in one of your batches.' };
+    const { data: regs } = await supabase
+      .from('registrations')
+      .select('batch_id, profiles!inner(full_name, role)')
+      .eq('user_id', itemId)
+      .eq('status', 'paid')
+      .in('batch_id', staff.batchIds)
+      .limit(1);
+    const reg = regs?.[0];
+    if (!reg || reg.profiles?.role !== 'student') return { error: 'That student isn\u2019t in one of your batches.' };
+    item = { batch_id: reg.batch_id, title: reg.profiles.full_name || 'Student' };
+  } else {
+    ({ data: item } = await supabase.from(spec.table).select('*').eq('id', itemId).maybeSingle());
+    if (!item) return { error: 'That item no longer exists.' };
+  }
+
+  const { data: dupe } = await supabase
+    .from('content_reports')
+    .select('id')
+    .eq('reporter_id', staff.userId)
+    .eq('item_id', itemId)
+    .eq('status', 'open')
+    .limit(1);
+  if (dupe?.length) return { error: 'You\u2019ve already reported this \u2014 the admin hasn\u2019t resolved it yet.' };
+
+  const { error } = await supabase.from('content_reports').insert({
+    reporter_id: staff.userId,
+    kind,
+    item_id: itemId,
+    item_title: spec.title(item),
+    batch_id: item.batch_id || null,
+    message: text
+  });
+  if (error) return { error: error.message };
+
+  // Alert every admin. Needs the service-role client: a teacher's own
+  // session isn't allowed to write alerts for an admin.
+  try {
+    const admin = createAdminClient();
+    const [{ data: admins }, { data: me }] = await Promise.all([
+      admin.from('profiles').select('id').eq('role', 'admin'),
+      admin.from('profiles').select('full_name').eq('id', staff.userId).maybeSingle()
+    ]);
+    const rows = (admins || []).map((a) => ({
+      user_id: a.id,
+      kind: 'report',
+      title: 'Teacher report',
+      body: `${me?.full_name || 'A teacher'} reported a ${kind}: ${text}`.slice(0, 300),
+      href: '/admin/reports'
+    }));
+    if (rows.length) await admin.from('notifications').insert(rows);
+  } catch {
+    /* the report itself is saved; the alert is best-effort */
+  }
+  revalidatePath('/admin', 'layout');
+  return { ok: true };
+}
+
+export async function resolveReport(reportId) {
+  const authCheck = await requireAdmin();
+  if (!authCheck.ok) return { error: authCheck.error };
+  if (typeof reportId !== 'string' || !UUID_RE.test(reportId)) return { error: 'Unknown report.' };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('content_reports')
+    .update({ status: 'resolved', resolved_at: new Date().toISOString(), resolved_by: user?.id })
+    .eq('id', reportId);
+  if (error) return { error: error.message };
+  revalidatePath('/admin', 'layout');
+  return { ok: true };
+}
+
+export async function deleteReport(reportId) {
+  const authCheck = await requireAdmin();
+  if (!authCheck.ok) return { error: authCheck.error };
+  if (typeof reportId !== 'string' || !UUID_RE.test(reportId)) return { error: 'Unknown report.' };
+  const supabase = await createClient();
+  const { error } = await supabase.from('content_reports').delete().eq('id', reportId);
+  if (error) return { error: error.message };
+  revalidatePath('/admin', 'layout');
+  return { ok: true };
+}
+
+// Admin acts on a report: delete the reported item (a video's Cloudinary
+// file goes too) and close the report.
+export async function removeReportedItem(reportId) {
+  const authCheck = await requireAdmin();
+  if (!authCheck.ok) return { error: authCheck.error };
+  if (typeof reportId !== 'string' || !UUID_RE.test(reportId)) return { error: 'Unknown report.' };
+  const supabase = await createClient();
+  const { data: report } = await supabase.from('content_reports').select('kind, item_id').eq('id', reportId).maybeSingle();
+  if (!report) return { error: 'Report not found.' };
+
+  const remove = { link: deleteClassLink, video: deleteClassVideo, announcement: deleteAnnouncement }[report.kind];
+  if (!remove) return { error: 'Student reports can\u2019t be deleted this way \u2014 handle the student from the Students page, then mark the report resolved.' };
+  const res = await remove(report.item_id);
+  if (res?.error) return res;
+  await resolveReport(reportId);
+  return { ok: true, warning: res?.warning };
 }
 
 // ---------- Course registration controls ----------
@@ -926,6 +1132,7 @@ export async function adminDeleteStudent(profileId) {
   if (!authCheck.ok) return { error: authCheck.error };
 
   const admin = createAdminClient();
+  if (await isAdminAccount(admin, profileId)) return { error: 'An admin account can\u2019t be deleted.' };
   const { error } = await admin.auth.admin.deleteUser(profileId);
   if (error) return { error: error.message };
 

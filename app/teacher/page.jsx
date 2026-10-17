@@ -29,8 +29,9 @@ export default async function TeacherOverview() {
     const [regs, msgs, links, vids] = await Promise.all([
       supabase
         .from('registrations')
-        .select('batch_id, created_at, profiles(full_name)')
+        .select('batch_id, created_at, profiles!inner(full_name, role)')
         .eq('status', 'paid')
+        .eq('profiles.role', 'student')
         .in('batch_id', ids)
         .order('created_at', { ascending: false }),
       supabase.from('messages').select('batch_id, content, created_at').in('batch_id', ids).order('created_at', { ascending: false }).limit(5),

@@ -8,7 +8,7 @@ import ClassVideoManager from './ClassVideoManager';
 // Hosts the two managers behind tabs, with one shared filter. The
 // filter answers "what would students in batch X see?" -- i.e. items
 // aimed at that batch PLUS items aimed at all batches.
-export default function ContentManager({ links, videos, audienceOptions, canTargetAll = true }) {
+export default function ContentManager({ links, videos, audienceOptions, canTargetAll = true, viewer = { role: 'admin' } }) {
   const [filter, setFilter] = useState('everything');
 
   const pick = (items) => {
@@ -36,8 +36,8 @@ export default function ContentManager({ links, videos, audienceOptions, canTarg
 
       <Tabs
         tabs={[
-          { key: 'links', label: `Class links (${pick(links).length})`, content: <ClassLinkManager links={pick(links)} audienceOptions={audienceOptions} /> },
-          { key: 'videos', label: `Videos (${pick(videos).length})`, content: <ClassVideoManager videos={pick(videos)} audienceOptions={audienceOptions} /> }
+          { key: 'links', label: `Class links (${pick(links).length})`, content: <ClassLinkManager links={pick(links)} audienceOptions={audienceOptions} viewer={viewer} /> },
+          { key: 'videos', label: `Videos (${pick(videos).length})`, content: <ClassVideoManager videos={pick(videos)} audienceOptions={audienceOptions} viewer={viewer} /> }
         ]}
       />
     </div>

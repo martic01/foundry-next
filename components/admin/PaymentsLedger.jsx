@@ -5,6 +5,7 @@ import { formatNaira } from '../../lib/courses';
 import { getPayment, getSource, summarizePayments, REGISTRATION_SOURCES } from '../../lib/payments';
 import PaymentStatTiles from './PaymentStatTiles';
 import PaymentRow from './PaymentRow';
+import SearchBox, { matchesQuery } from '../ui/SearchBox';
 
 // Payments page body: stats, filters, and the ledger. The stat tiles
 // always count EVERYONE (so the numbers don't jump around as you filter);
@@ -12,6 +13,7 @@ import PaymentRow from './PaymentRow';
 export default function PaymentsLedger({ rows, initialStatus = 'all' }) {
   const [status, setStatus] = useState(initialStatus);
   const [source, setSource] = useState('all');
+  const [q, setQ] = useState('');
 
   const summary = useMemo(() => summarizePayments(rows.map((r) => r.reg)), [rows]);
 
@@ -20,13 +22,14 @@ export default function PaymentsLedger({ rows, initialStatus = 'all' }) {
       rows.filter(
         (r) =>
           (status === 'all' || getPayment(r.reg).status === status) &&
-          (source === 'all' || getSource(r.reg) === source)
+          (source === 'all' || getSource(r.reg) === source) &&
+          matchesQuery(q, r.studentName, r.reg.profiles?.email, r.courseName, r.reg.paystack_reference)
       ),
-    [rows, status, source]
+    [rows, status, source, q]
   );
 
   const inView = useMemo(() => summarizePayments(visible.map((r) => r.reg)), [visible]);
-  const filtered = status !== 'all' || source !== 'all';
+  const filtered = status !== 'all' || source !== 'all' || q.trim() !== '';
 
   const chip = (key, label, count) => (
     <button
@@ -88,6 +91,7 @@ export default function PaymentsLedger({ rows, initialStatus = 'all' }) {
         </p>
       )}
 
+      <SearchBox value={q} onChange={setQ} placeholder="Search by name, email, course or Paystack reference" className="mb-3" />
       {!visible.length ? (
         <div className="card p-6 text-sm text-inkdim">{rows.length ? 'No one matches these filters.' : 'No payments yet.'}</div>
       ) : (

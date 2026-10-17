@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Megaphone, Video, Link2, NotebookText, X, CheckCircle2 } from 'lucide-react';
+import { Megaphone, Video, Link2, NotebookText, X, CheckCircle2, Flag } from 'lucide-react';
 import { createClient } from '../../lib/supabase/client';
 
+// Auto-dismiss: toasts clear after ~8s (paused on hover).
 // Two kinds of alert, both stored per student in `notifications`:
 //   announcement -> a blocking pop-up. It stays on screen until the
 //                   student taps "I'm ready" (no Esc / backdrop close).
@@ -13,7 +14,46 @@ import { createClient } from '../../lib/supabase/client';
 // New rows arrive over Realtime, with a 20s poll as the fallback for
 // when Realtime isn't enabled. Marking one read is a single update of
 // read_at (the only column a student is allowed to change).
-const ICONS = { video: Video, link: Link2, notes: NotebookText, announcement: Megaphone };
+const ICONS = { video: Video, link: Link2, notes: NotebookText, announcement: Megaphone, report: Flag };
+const TOAST_MS = 8000; // toasts leave on their own; the pop-up never does
+
+// One toast with its own auto-dismiss timer. Hovering or focusing it
+// pauses the timer so a student can still reach the "View" link.
+function Toast({ n, onDone }) {
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (paused) return undefined;
+    const t = setTimeout(() => onDone(n.id), TOAST_MS);
+    return () => clearTimeout(t);
+  }, [paused, n.id, onDone]);
+  const Icon = ICONS[n.kind] || Megaphone;
+  return (
+    <div
+      className="card pointer-events-auto flex items-start gap-3 p-3.5 shadow-lg"
+      role="status"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
+      <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-ink">{n.title}</p>
+        {n.body && <p className="truncate text-xs text-inkdim">{n.body}</p>}
+        {n.href && (
+          <Link href={n.href} onClick={() => onDone(n.id)} className="mt-1 inline-block text-xs font-semibold text-brand hover:underline">
+            View
+          </Link>
+        )}
+      </div>
+      <button type="button" onClick={() => onDone(n.id)} aria-label="Dismiss" className="rounded p-1 text-inkdim hover:bg-surfaceMuted hover:text-ink">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 export default function NotificationHost({ userId }) {
   const [items, setItems] = useState([]);
@@ -103,28 +143,9 @@ export default function NotificationHost({ userId }) {
 
       {toasts.length > 0 && (
         <div className="pointer-events-none fixed bottom-4 right-4 z-[250] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2" aria-live="polite">
-          {toasts.slice(-3).map((n) => {
-            const Icon = ICONS[n.kind] || Megaphone;
-            return (
-              <div key={n.id} className="card pointer-events-auto flex items-start gap-3 p-3.5 shadow-lg" role="status">
-                <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-ink">{n.title}</p>
-                  {n.body && <p className="truncate text-xs text-inkdim">{n.body}</p>}
-                  {n.href && (
-                    <Link href={n.href} onClick={() => markRead(n.id)} className="mt-1 inline-block text-xs font-semibold text-brand hover:underline">
-                      View
-                    </Link>
-                  )}
-                </div>
-                <button type="button" onClick={() => markRead(n.id)} aria-label="Dismiss" className="rounded p-1 text-inkdim hover:bg-surfaceMuted hover:text-ink">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            );
-          })}
+          {toasts.slice(-3).map((n) => (
+            <Toast key={n.id} n={n} onDone={markRead} />
+          ))}
         </div>
       )}
     </>

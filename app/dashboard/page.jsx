@@ -42,6 +42,14 @@ export default async function DashboardOverviewPage() {
       ) : (
         <div className="flex flex-col gap-4">
           {registrations.map((reg) => {
+            if (reg.blocked) {
+              return (
+                <div key={reg.id} className="card border-red-200 p-5 text-sm text-inkdim">
+                  <p className="font-display text-base font-extrabold text-ink">{COURSES[reg.course]?.name || reg.course}</p>
+                  Access to this course has been paused. Contact the admin if you think this is a mistake.
+                </div>
+              );
+            }
             const linkCount = (links || []).filter((l) => l.batch_id === null || l.batch_id === reg.batch_id).length;
             return (
               <EnrollmentCard

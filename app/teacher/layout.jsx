@@ -3,6 +3,8 @@ import { LayoutDashboard, Users2, NotebookText, FolderOpen, Megaphone } from 'lu
 import { getUser, getProfile } from '../../lib/supabase/session';
 import { signOutAction } from '../actions';
 import PortalShell from '../../components/portal/PortalShell';
+import { createAdminClient } from '../../lib/supabase/admin';
+import { maybePurgeExpired } from '../../lib/purge';
 
 // Teacher portal. Anyone who isn't a teacher is sent to their own home:
 // the admin to /admin, students to /dashboard. A teacher only ever sees
@@ -25,6 +27,8 @@ export default async function TeacherLayout({ children }) {
       </main>
     );
   }
+
+  maybePurgeExpired(createAdminClient).catch(() => {});
 
   const navItems = [
     { href: '/teacher', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" />, exact: true },

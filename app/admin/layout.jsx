@@ -1,8 +1,11 @@
 import { redirect } from 'next/navigation';
-import { LayoutDashboard, Users2, Wallet, GraduationCap, NotebookText, FolderOpen, Lock, Megaphone, Presentation } from 'lucide-react';
+import { LayoutDashboard, Users2, Wallet, GraduationCap, NotebookText, FolderOpen, Lock, Megaphone, Presentation, Flag } from 'lucide-react';
 import { getUser, getProfile } from '../../lib/supabase/session';
 import { signOutAction } from '../actions';
 import PortalShell from '../../components/portal/PortalShell';
+import NotificationHost from '../../components/dashboard/NotificationHost';
+import { createAdminClient } from '../../lib/supabase/admin';
+import { maybePurgeExpired } from '../../lib/purge';
 
 export default async function AdminLayout({ children }) {
   // Per-request cached lookups (lib/supabase/session.js): the root Nav
@@ -27,6 +30,8 @@ export default async function AdminLayout({ children }) {
     );
   }
 
+  maybePurgeExpired(createAdminClient).catch(() => {}); // throttled; expired items are also hidden by RLS
+
   const navItems = [
     { href: '/admin', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" />, exact: true },
     { href: '/admin/batches', label: 'Batches', icon: <GraduationCap className="h-4 w-4" /> },
@@ -36,6 +41,7 @@ export default async function AdminLayout({ children }) {
     { href: '/admin/teachers', label: 'Teachers', icon: <Presentation className="h-4 w-4" /> },
     { href: '/admin/students', label: 'Students', icon: <Users2 className="h-4 w-4" /> },
     { href: '/admin/notes', label: 'Notes', icon: <NotebookText className="h-4 w-4" /> },
+    { href: '/admin/reports', label: 'Reports', icon: <Flag className="h-4 w-4" /> },
     { href: '/admin/payments', label: 'Payments', icon: <Wallet className="h-4 w-4" /> }
   ];
 
@@ -48,6 +54,7 @@ export default async function AdminLayout({ children }) {
       logoutAction={signOutAction}
     >
       {children}
+      <NotificationHost userId={user.id} />
     </PortalShell>
   );
 }

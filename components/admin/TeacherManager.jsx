@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { UserPlus, Save, Trash2 } from 'lucide-react';
 import { adminAddTeacher, setTeacherBatches, removeTeacher } from '../../app/admin/actions';
 import { useDialog } from '../ui/DialogProvider';
+import SearchBox, { matchesQuery } from '../ui/SearchBox';
 
 function BatchChecklist({ groups, selected, onToggle, disabled }) {
   if (!groups.length) return <p className="text-xs text-inkdim">No batches exist yet — create one on the Batches page.</p>;
@@ -180,14 +181,18 @@ function AddTeacherForm({ groups }) {
 }
 
 export default function TeacherManager({ teachers, batchGroups }) {
+  const [q, setQ] = useState('');
+  const shown = teachers.filter((t) => matchesQuery(q, t.full_name, t.email));
   return (
     <div>
       <AddTeacherForm groups={batchGroups} />
+      {teachers.length > 3 && <SearchBox value={q} onChange={setQ} placeholder="Search teachers by name or email" className="mb-4" />}
       {!teachers.length ? (
         <div className="card p-6 text-sm text-inkdim">No teachers yet.</div>
       ) : (
         <div className="flex flex-col gap-5">
-          {teachers.map((t) => (
+          {!shown.length && <div className="card p-6 text-sm text-inkdim">No teacher matches “{q}”.</div>}
+          {shown.map((t) => (
             <TeacherCard key={t.id + t.batchIds.join(',')} teacher={t} groups={batchGroups} />
           ))}
         </div>

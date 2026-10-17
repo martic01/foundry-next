@@ -550,6 +550,7 @@ exception when duplicate_object or undefined_object then null; end $$;
 --   supabase/migration-notifications.sql   (student alerts / pop-ups)
 --   supabase/migration-teachers.sql        (Teacher role, manual batches)
 --   supabase/migration-placeholder-notes.sql
+--   supabase/migration-roles-expiry.sql
 --   supabase/migration-security-hardening.sql
 -- (migration-new-courses.sql / migration-teacher-role.sql are only for
 -- databases created before those enum values existed.)
