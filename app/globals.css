@@ -162,3 +162,25 @@
 @media (prefers-reduced-motion: reduce) {
   .dialog-fade, .dialog-pop { animation: none; }
 }
+
+
+/* Upload / delete / save feedback (components/admin/content-shared.jsx). */
+@keyframes bar-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.bar-shimmer::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+  animation: bar-shimmer 1.2s linear infinite;
+}
+@keyframes row-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.row-in { animation: row-in 220ms ease-out; }
+@keyframes busy-stripes { from { background-position: 0 0; } to { background-position: 28px 0; } }
+.busy-stripes {
+  background-image: repeating-linear-gradient(45deg, rgb(var(--color-brand) / 0.10) 0 10px, transparent 10px 20px);
+  background-size: 28px 28px;
+  animation: busy-stripes 0.8s linear infinite;
+}
+@keyframes pop-check { 0% { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
+.pop-check { animation: pop-check 280ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .bar-shimmer::after, .row-in, .busy-stripes, .pop-check { animation: none; }
+}

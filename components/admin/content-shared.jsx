@@ -137,3 +137,34 @@ export function ReportButton({ kind, itemId }) {
     </div>
   );
 }
+
+// ---- Feedback bits: something visibly happens on every action ----
+
+export function ProgressBar({ value = 0, indeterminate = false, tone = 'brand' }) {
+  const bar = tone === 'red' ? 'bg-red-500' : tone === 'green' ? 'bg-green-600' : 'bg-brand';
+  return (
+    <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow={indeterminate ? undefined : value} aria-valuemin={0} aria-valuemax={100}>
+      <div
+        className={`bar-shimmer relative h-full overflow-hidden rounded-full ${bar} transition-[width] duration-300 ease-out`}
+        style={{ width: indeterminate ? '100%' : `${Math.max(3, Math.min(100, value))}%` }}
+      />
+    </div>
+  );
+}
+
+// A row that is being deleted / saved: dimmed, striped, with a label, so
+// it is obvious the click registered while the server works.
+export function BusyOverlay({ label = 'Working…' }) {
+  return (
+    <div className="busy-stripes absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-surface/70 backdrop-blur-[1px]" aria-live="polite">
+      <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-ink shadow-sm">
+        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+        {label}
+      </span>
+    </div>
+  );
+}
+
+export function Spinner({ className = 'h-3.5 w-3.5' }) {
+  return <span className={`inline-block animate-spin rounded-full border-2 border-current border-t-transparent ${className}`} aria-hidden="true" />;
+}

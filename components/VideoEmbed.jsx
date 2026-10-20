@@ -6,12 +6,15 @@ function getYoutubeEmbedUrl(url) {
   try {
     const u = new URL(url);
     let id = null;
-    if (u.hostname.includes('youtu.be')) {
+    const host = u.hostname.toLowerCase();
+    if (u.protocol !== 'https:') return null;
+    if (host === 'youtu.be') {
       id = u.pathname.slice(1);
-    } else if (u.hostname.includes('youtube.com')) {
+    } else if (host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com') {
       id = u.searchParams.get('v');
     }
-    if (!id) return null;
+    // A YouTube id is 11 characters of [A-Za-z0-9_-]; anything else is rejected.
+    if (!id || !/^[A-Za-z0-9_-]{6,20}$/.test(id)) return null;
     return `https://www.youtube.com/embed/${id}`;
   } catch {
     return null;

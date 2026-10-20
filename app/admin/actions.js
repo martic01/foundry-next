@@ -12,7 +12,7 @@ import { resolveStudentAccount, absorbShellAccounts, resolveTeacherAccount } fro
 import { COURSE_SETTINGS_TAG } from '../../lib/course-settings';
 import { notifyStudents } from '../../lib/notify';
 import { parseExpiry } from '../../lib/expiry';
-import { destroyCloudinaryVideo, publicIdFromCloudinaryUrl } from '../../lib/cloudinary-server';
+import { destroyCloudinaryVideo, publicIdFromCloudinaryUrl, getCloudinaryVideoCreatedAt, signVideoUpload, videoFolderFor } from '../../lib/cloudinary-server';
 
 // Every function here uses the caller's OWN session (via the regular,
 // RLS-bound server client) -- never the service-role client -- with ONE
@@ -33,6 +33,17 @@ import { destroyCloudinaryVideo, publicIdFromCloudinaryUrl } from '../../lib/clo
 // who can reach the deployed app, regardless of whether the admin-only
 // UI that normally calls them is hidden from them. requireAdmin() here
 // means that even in that scenario, these stay closed.
+// Database errors can name tables, columns and constraints, so they're
+// logged on the server and the browser gets a plain message instead.
+// Messages we raise ourselves in SQL triggers (error code P0001, e.g.
+// "An admin account can't be blocked.") are written for people and pass
+// through unchanged.
+function dbError(error) {
+  if (error?.code === 'P0001' && error.message) return error.message;
+  console.error('[db]', error?.code, error?.message);
+  return 'Something went wrong saving that. Please try again.';
+}
+
 async function requireAdmin() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -102,7 +113,7 @@ export async function removeFromBatch(registrationId) {
     .from('registrations')
     .update({ status: 'removed', batch_id: null })
     .eq('id', registrationId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   // 'layout' revalidates every page nested under that layout in one call
   // -- Batches, Students (course list changes), Overview (counts), and
   // Payments (this registration drops off the ledger) all live under
@@ -131,7 +142,7 @@ export async function setRegistrationBlocked(registrationId, blocked) {
     return {
       error: /blocked/.test(error.message)
         ? 'Per-course blocking isn\u2019t set up yet \u2014 run supabase/migration-per-course-access.sql.'
-        : error.message
+        : dbError(error)
     };
   }
   revalidatePath('/admin', 'layout');
@@ -152,7 +163,7 @@ export async function deleteRegistration(registrationId) {
   if (!reg) return { error: 'Registration not found.' };
   if (await isAdminAccount(admin, reg.user_id)) return { error: 'An admin account can\u2019t be removed.' };
   const { error } = await admin.from('registrations').delete().eq('id', registrationId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   revalidatePath('/admin', 'layout');
   revalidatePath('/dashboard', 'layout');
   return { ok: true };
@@ -168,7 +179,7 @@ export async function setBlocked(profileId, blocked) {
     .from('profiles')
     .update({ blocked })
     .eq('id', profileId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   revalidatePath('/admin', 'layout');
   revalidatePath('/dashboard', 'layout');
   return { ok: true };
@@ -239,7 +250,7 @@ export async function updateBatchDetails(batchId, { label, startDate, capacity, 
   if (autoAssign !== undefined) patch.auto_assign = !!autoAssign;
 
   const { error } = await supabase.from('batches').update(patch).eq('id', batchId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   refreshEverything();
   return { ok: true };
 }
@@ -286,7 +297,7 @@ export async function createBatch(courseKey, { label, capacity, startDate, autoA
     .insert({ course: courseKey, label: name, capacity: cap, start_date: startDate || null, auto_assign: autoAssign !== false })
     .select('id')
     .single();
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
 
   if (teachers.ids.length) {
     const { error: tErr } = await supabase
@@ -294,7 +305,7 @@ export async function createBatch(courseKey, { label, capacity, startDate, autoA
       .insert(teachers.ids.map((teacher_id) => ({ batch_id: batch.id, teacher_id })));
     if (tErr) {
       refreshEverything();
-      return { ok: true, batchId: batch.id, warning: `Batch created, but teachers couldn\u2019t be assigned: ${tErr.message}` };
+      return { ok: true, batchId: batch.id, warning: `Batch created, but teachers couldn\u2019t be assigned: ${dbError(tErr)}` };
     }
   }
   refreshEverything();
@@ -312,10 +323,10 @@ export async function assignTeacherToBatch(batchId, teacherId, assigned) {
     const { data: t } = await supabase.from('profiles').select('role').eq('id', teacherId).maybeSingle();
     if (t?.role !== 'teacher') return { error: 'That person isn\u2019t a teacher.' };
     const { error } = await supabase.from('batch_teachers').upsert({ batch_id: batchId, teacher_id: teacherId }, { onConflict: 'batch_id,teacher_id' });
-    if (error) return { error: error.message };
+    if (error) return { error: dbError(error) };
   } else {
     const { error } = await supabase.from('batch_teachers').delete().eq('batch_id', batchId).eq('teacher_id', teacherId);
-    if (error) return { error: error.message };
+    if (error) return { error: dbError(error) };
   }
   refreshEverything();
   return { ok: true };
@@ -346,11 +357,11 @@ export async function setTeacherBatches(teacherId, batchIds) {
 
   if (toAdd.length) {
     const { error } = await supabase.from('batch_teachers').insert(toAdd.map((batch_id) => ({ batch_id, teacher_id: teacherId })));
-    if (error) return { error: error.message };
+    if (error) return { error: dbError(error) };
   }
   if (toRemove.length) {
     const { error } = await supabase.from('batch_teachers').delete().eq('teacher_id', teacherId).in('batch_id', toRemove);
-    if (error) return { error: error.message };
+    if (error) return { error: dbError(error) };
   }
   refreshEverything();
   return { ok: true };
@@ -380,7 +391,7 @@ export async function adminAddTeacher(fullName, email, batchIds, confirmDropEnro
     const { error } = await admin
       .from('batch_teachers')
       .upsert(parsed.ids.map((batch_id) => ({ batch_id, teacher_id: account.userId })), { onConflict: 'batch_id,teacher_id' });
-    if (error) return { error: `Teacher added, but batches couldn\u2019t be assigned: ${error.message}` };
+    if (error) return { error: `Teacher added, but batches couldn\u2019t be assigned: ${dbError(error)}` };
   }
   refreshEverything();
   return { ok: true, created: account.created, droppedEnrolments: account.droppedEnrolments || 0 };
@@ -398,9 +409,9 @@ export async function removeTeacher(teacherId) {
   if (t?.role !== 'teacher') return { error: 'That person isn\u2019t a teacher.' };
 
   const { error: delError } = await supabase.from('batch_teachers').delete().eq('teacher_id', teacherId);
-  if (delError) return { error: delError.message };
+  if (delError) return { error: dbError(delError) };
   const { error } = await supabase.from('profiles').update({ role: 'student' }).eq('id', teacherId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   refreshEverything();
   return { ok: true };
 }
@@ -419,7 +430,7 @@ export async function batchTimerAction(batchId, action) {
     .select('id, class_status, timer_total_seconds, timer_elapsed_seconds, timer_started_at')
     .eq('id', batchId)
     .maybeSingle();
-  if (readError) return { error: readError.message };
+  if (readError) return { error: dbError(readError) };
   if (!batch) return { error: 'Batch not found.' };
 
   const transition = computeTimerTransition(batch, action, Date.now());
@@ -431,7 +442,7 @@ export async function batchTimerAction(batchId, action) {
     .eq('id', batchId)
     .eq('class_status', batch.class_status)
     .select('id');
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   if (!updated?.length) return { error: 'This batch was just changed by someone else \u2014 refresh and try again.' };
 
   refreshEverything();
@@ -462,7 +473,7 @@ export async function moveStudentToBatch(registrationId, targetBatchId) {
   if ((count || 0) >= target.capacity) return { error: `${target.label} is full (${target.capacity}/${target.capacity}).` };
 
   const { error } = await supabase.from('registrations').update({ batch_id: target.id }).eq('id', registrationId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   refreshEverything();
   return { ok: true };
 }
@@ -501,7 +512,7 @@ export async function moveStudentsToBatch(registrationIds, targetBatchId) {
   }
 
   const { error } = await supabase.from('registrations').update({ batch_id: target.id }).in('id', moving);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   refreshEverything();
   return { ok: true, moved: moving.length };
 }
@@ -528,7 +539,7 @@ export async function addClassLink(audience, title, rawUrl, expiresAt) {
     updated_by: user?.id,
     expires_at: exp.value
   });
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   await notifyStudents(supabase, { batchId: aud.batchId }, {
     kind: 'link',
     title: 'New class link',
@@ -537,6 +548,50 @@ export async function addClassLink(audience, title, rawUrl, expiresAt) {
   });
   refreshEverything();
   return { ok: true };
+}
+
+// Several links at once. Every line is checked on its own: good ones are
+// saved, bad ones come back with a plain reason, and one bad line never
+// blocks the rest. results[i] lines up with items[i].
+export async function addClassLinks(audience, items, expiresAt) {
+  const staff = await requireStaff();
+  if (!staff.ok) return { error: staff.error };
+  const aud = staffAudience(audience, staff);
+  if (aud.error) return { error: aud.error };
+  if (!Array.isArray(items) || !items.length) return { error: 'Add at least one link.' };
+  if (items.length > 30) return { error: 'Add at most 30 links at a time.' };
+  const exp = parseExpiry(expiresAt);
+  if (exp.error) return { error: exp.error };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const results = [];
+  let saved = 0;
+  for (const it of items) {
+    const parsed = parseUrl(it?.url);
+    if (parsed.error) { results.push({ error: parsed.error }); continue; }
+    const { error } = await supabase.from('class_links').insert({
+      batch_id: aud.batchId,
+      title: String(it?.title || '').trim().slice(0, 200) || null,
+      url: parsed.url,
+      created_by: user?.id,
+      updated_by: user?.id,
+      expires_at: exp.value
+    });
+    if (error) results.push({ error: 'Couldn\u2019t save this one. Try it again.' });
+    else { results.push({ ok: true }); saved += 1; }
+  }
+  if (saved) {
+    // One notification for the whole batch of links, not one per link.
+    await notifyStudents(supabase, { batchId: aud.batchId }, {
+      kind: 'link',
+      title: saved === 1 ? 'New class link' : `${saved} new class links`,
+      body: saved === 1 ? String(items.find((_, i) => results[i]?.ok)?.title || '').trim().slice(0, 200) || 'A new class link was added.' : 'New class links were added.',
+      href: '/dashboard/courses'
+    });
+    refreshEverything();
+  }
+  return { ok: true, saved, results };
 }
 
 // "Replace" a link = edit its URL (and/or its title and audience).
@@ -565,7 +620,7 @@ export async function updateClassLink(linkId, { audience, title, url, expiresAt 
       updated_by: user?.id
     })
     .eq('id', linkId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   refreshEverything();
   return { ok: true };
 }
@@ -578,7 +633,7 @@ export async function deleteClassLink(linkId) {
   const denied = await staffOwnsRow(staff, supabase, 'class_links', linkId);
   if (denied) return { error: denied };
   const { error } = await supabase.from('class_links').delete().eq('id', linkId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   refreshEverything();
   return { ok: true };
 }
@@ -603,7 +658,7 @@ export async function postAnnouncement(audience, content, expiresAt) {
     .insert({ batch_id: aud.batchId, sender_id: user?.id, content: text, expires_at: exp.value })
     .select('id')
     .single();
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   // Pop-up for every student who can see it; they must acknowledge it.
   await notifyStudents(supabase, { batchId: aud.batchId }, {
     kind: 'announcement',
@@ -634,7 +689,7 @@ export async function updateAnnouncement(messageId, { audience, content, expires
     .from('messages')
     .update({ batch_id: aud.batchId, content: text, expires_at: exp.value, updated_at: new Date().toISOString() })
     .eq('id', messageId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   refreshEverything();
   return { ok: true };
 }
@@ -647,7 +702,7 @@ export async function deleteAnnouncement(messageId) {
   const denied = await staffOwnsRow(staff, supabase, 'messages', messageId);
   if (denied) return { error: denied };
   const { error } = await supabase.from('messages').delete().eq('id', messageId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   refreshEverything();
   return { ok: true };
 }
@@ -668,7 +723,12 @@ export async function addClassVideo(audience, title, description, cloudinaryUrl,
   if (String(description || '').length > 2000) return { error: 'Description is too long (max 2000).' };
   const videoUrl = parseCloudinaryVideoUrl(cloudinaryUrl, process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
   if (!videoUrl) return { error: 'Video URL must be an https Cloudinary video from this account.' };
-  if (cloudinaryPublicId && !isPlausiblePublicId(cloudinaryPublicId)) return { error: 'Invalid video id.' };
+  // The stored Cloudinary id must be the one in the URL. It is what later
+  // gets DELETED on Cloudinary, so a client-supplied id pointing at
+  // someone else's file (say the admin's video) must never be accepted.
+  const idFromUrl = publicIdFromCloudinaryUrl(videoUrl);
+  if (!idFromUrl || !isPlausiblePublicId(idFromUrl)) return { error: 'Invalid video address.' };
+  if (cloudinaryPublicId && cloudinaryPublicId !== idFromUrl) return { error: 'That video id doesn\u2019t match its address.' };
   const exp = parseExpiry(expiresAt);
   if (exp.error) return { error: exp.error };
 
@@ -679,11 +739,11 @@ export async function addClassVideo(audience, title, description, cloudinaryUrl,
     title: String(title).trim(),
     description: String(description || '').trim() || null,
     cloudinary_url: videoUrl,
-    cloudinary_public_id: cloudinaryPublicId || null,
+    cloudinary_public_id: idFromUrl,
     created_by: user?.id,
     expires_at: exp.value
   });
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   await notifyStudents(supabase, { batchId: aud.batchId }, {
     kind: 'video',
     title: 'New class video',
@@ -718,7 +778,7 @@ export async function updateClassVideo(videoId, { audience, title, description, 
       updated_at: new Date().toISOString()
     })
     .eq('id', videoId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   refreshEverything();
   return { ok: true };
 }
@@ -740,7 +800,7 @@ export async function deleteClassVideo(videoId) {
     .eq('id', videoId)
     .maybeSingle();
   const { error } = await supabase.from('class_videos').delete().eq('id', videoId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   refreshEverything();
 
   const publicId = video?.cloudinary_public_id || publicIdFromCloudinaryUrl(video?.cloudinary_url);
@@ -751,12 +811,41 @@ export async function deleteClassVideo(videoId) {
   return { ok: true };
 }
 
+// Staff-only permission slip for ONE browser upload straight to Cloudinary.
+// Uploads are signed here, so only a signed-in admin/teacher can put a
+// file in the Cloudinary account -- there is no public upload preset
+// anyone on the internet could use. The signature is good for about an
+// hour and only for these exact parameters.
+export async function getVideoUploadSignature(audience) {
+  const staff = await requireStaff();
+  if (!staff.ok) return { error: staff.error };
+  // The audience decides the Cloudinary folder (course / batch). A teacher
+  // can only pick a batch they teach -- same rule as posting the video.
+  const aud = staffAudience(audience, staff);
+  if (aud.error) return { error: aud.error };
+  let batch = null;
+  if (aud.batchId) {
+    const supabase = await createClient();
+    const { data } = await supabase.from('batches').select('course, label').eq('id', aud.batchId).maybeSingle();
+    batch = data;
+  }
+  const signed = signVideoUpload(videoFolderFor(batch));
+  if (!signed) return { error: 'Video uploads aren\u2019t configured on the server (Cloudinary keys missing).' };
+  return { ok: true, ...signed };
+}
+
 // Used when a browser upload to Cloudinary succeeded but recording it in
 // our database failed -- removes the orphaned file.
 export async function discardCloudinaryUpload(publicId) {
   const staff = await requireStaff();
   if (!staff.ok) return { error: staff.error };
   if (!isPlausiblePublicId(publicId)) return { error: 'Invalid video id.' };
+  // A teacher may only discard a file uploaded in the last 2 hours -- this
+  // call can't be used to wipe older videos from the Cloudinary account.
+  if (staff.role !== 'admin') {
+    const created = await getCloudinaryVideoCreatedAt(publicId);
+    if (!created || Date.now() - created > 2 * 60 * 60 * 1000) return { error: 'That file can\u2019t be discarded from here.' };
+  }
   const supabase = await createClient();
   // Never delete a file that a live row still points at.
   const { data: inUse } = await supabase.from('class_videos').select('id').eq('cloudinary_public_id', publicId).limit(1);
@@ -825,7 +914,7 @@ export async function reportContent(kind, itemId, message) {
     batch_id: item.batch_id || null,
     message: text
   });
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
 
   // Alert every admin. Needs the service-role client: a teacher's own
   // session isn't allowed to write alerts for an admin.
@@ -860,7 +949,7 @@ export async function resolveReport(reportId) {
     .from('content_reports')
     .update({ status: 'resolved', resolved_at: new Date().toISOString(), resolved_by: user?.id })
     .eq('id', reportId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   revalidatePath('/admin', 'layout');
   return { ok: true };
 }
@@ -871,7 +960,7 @@ export async function deleteReport(reportId) {
   if (typeof reportId !== 'string' || !UUID_RE.test(reportId)) return { error: 'Unknown report.' };
   const supabase = await createClient();
   const { error } = await supabase.from('content_reports').delete().eq('id', reportId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   revalidatePath('/admin', 'layout');
   return { ok: true };
 }
@@ -943,7 +1032,7 @@ export async function updateCourseSettings(courseKey, settings) {
     updated_at: new Date().toISOString(),
     updated_by: user?.id
   });
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   revalidateTag(COURSE_SETTINGS_TAG); // landing + /register read this through a cache
   refreshEverything();
   return { ok: true };
@@ -967,7 +1056,7 @@ export async function unlockNoteDay(course, day) {
 
   const supabase = await createClient();
   const { error } = await supabase.from('note_unlocks').upsert({ course, day });
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   await notifyStudents(supabase, { course }, {
     kind: 'notes',
     title: `Day ${day} notes unlocked`,
@@ -986,7 +1075,7 @@ export async function lockNoteDay(course, day) {
 
   const supabase = await createClient();
   const { error } = await supabase.from('note_unlocks').delete().eq('course', course).eq('day', day);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   revalidatePath('/admin', 'layout');
   revalidatePath('/dashboard', 'layout');
   return { ok: true };
@@ -1063,7 +1152,7 @@ export async function adminAddStudent(fullName, email, courseKey, age, payment) 
   }
 
   const { data: batchId, error: batchError } = await admin.rpc('assign_batch', { p_course: courseKey });
-  if (batchError) return { error: batchError.message };
+  if (batchError) return { error: dbError(batchError) };
 
   const { error: regError } = await admin.from('registrations').insert({
     user_id: userId,
@@ -1078,7 +1167,7 @@ export async function adminAddStudent(fullName, email, courseKey, age, payment) 
     status: 'paid', // access: enrolled
     laptop_specs_agreed: false
   });
-  if (regError) return { error: needsMigration(regError) ? MIGRATION_HINT : regError.message };
+  if (regError) return { error: needsMigration(regError) ? MIGRATION_HINT : dbError(regError) };
 
   // Tell the admin exactly where this student now lives, so "did it
   // work?" never needs a hunt through the lists.
@@ -1115,7 +1204,7 @@ export async function updateRegistrationPayment(registrationId, payment) {
   if (parsed.error) return { error: parsed.error };
 
   const { error } = await supabase.from('registrations').update(parsed.row).eq('id', registrationId);
-  if (error) return { error: needsMigration(error) ? MIGRATION_HINT : error.message };
+  if (error) return { error: needsMigration(error) ? MIGRATION_HINT : dbError(error) };
   refreshEverything();
   return { ok: true };
 }
@@ -1134,7 +1223,7 @@ export async function adminDeleteStudent(profileId) {
   const admin = createAdminClient();
   if (await isAdminAccount(admin, profileId)) return { error: 'An admin account can\u2019t be deleted.' };
   const { error } = await admin.auth.admin.deleteUser(profileId);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
 
   refreshEverything();
   return { ok: true };

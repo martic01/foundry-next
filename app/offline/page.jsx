@@ -7,6 +7,6 @@ export const metadata = { title: 'Network is down — The Foundry' };
 // paths are honoured.
 export default function OfflinePage({ searchParams }) {
   const raw = typeof searchParams?.next === 'string' ? searchParams.next : '/';
-  const next = raw.startsWith('/') && !raw.startsWith('//') && !raw.startsWith('/offline') ? raw : '/';
+  const next = raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('\\') && !raw.startsWith('/offline') ? raw : '/';
   return <ErrorScreen forceNetwork retryTo={next} />;
 }

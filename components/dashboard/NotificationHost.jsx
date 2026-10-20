@@ -42,7 +42,7 @@ function Toast({ n, onDone }) {
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-ink">{n.title}</p>
         {n.body && <p className="truncate text-xs text-inkdim">{n.body}</p>}
-        {n.href && (
+        {typeof n.href === 'string' && /^\/(?![\/\\])/.test(n.href) && (
           <Link href={n.href} onClick={() => onDone(n.id)} className="mt-1 inline-block text-xs font-semibold text-brand hover:underline">
             View
           </Link>

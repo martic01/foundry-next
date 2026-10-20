@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { Send, Pencil, Trash2, Check, X } from 'lucide-react';
 import { postAnnouncement, updateAnnouncement, deleteAnnouncement } from '../../app/admin/actions';
 import { useDialog } from '../ui/DialogProvider';
-import { AudienceSelect, AudienceChip, audienceOf, defaultAudienceFor, iconBtn, dangerBtn, ExpirySelect, ExpiryChip, canModify, ReportButton } from './content-shared';
+import { AudienceSelect, AudienceChip, audienceOf, defaultAudienceFor, iconBtn, dangerBtn, ExpirySelect, ExpiryChip, canModify, ReportButton, BusyOverlay, Spinner } from './content-shared';
 import ExpandableText from '../ui/ExpandableText';
 import SearchBox, { matchesQuery } from '../ui/SearchBox';
 import { defaultExpiry, expiryToIso, expiryFromIso } from '../../lib/expiry';
@@ -18,16 +18,23 @@ export default function AnnouncementManager({ messages, audienceOptions, viewer 
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({ audience: defaultAudienceFor(audienceOptions), content: '', expiry: defaultExpiry() });
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(null);
   const [isPending, startTransition] = useTransition();
   const { confirm } = useDialog();
 
   function run(action, onOk, ...args) {
     startTransition(async () => {
-      const res = await action(...args);
-      if (res?.error) setError(res.error);
-      else {
-        setError('');
-        onOk?.();
+      try {
+        const res = await action(...args);
+        if (res?.error) setError(res.error);
+        else {
+          setError('');
+          onOk?.();
+        }
+      } catch {
+        setError('Couldn\u2019t reach the server. Check your internet connection and try again.');
+      } finally {
+        setBusy(null);
       }
     });
   }
@@ -41,6 +48,7 @@ export default function AnnouncementManager({ messages, audienceOptions, viewer 
   function saveEdit(m) {
     const e = expiryToIso(draft.expiry);
     if (e.error) return setError(e.error);
+    setBusy({ id: m.id, label: 'Saving…' });
     run(updateAnnouncement, () => setEditingId(null), m.id, { audience: draft.audience, content: draft.content, expiresAt: e.iso });
   }
 
@@ -51,7 +59,10 @@ export default function AnnouncementManager({ messages, audienceOptions, viewer 
       confirmLabel: 'Delete',
       tone: 'danger'
     });
-    if (ok) run(deleteAnnouncement, null, m.id);
+    if (ok) {
+      setBusy({ id: m.id, label: 'Deleting…' });
+      run(deleteAnnouncement, null, m.id);
+    }
   }
 
   return (
@@ -67,7 +78,7 @@ export default function AnnouncementManager({ messages, audienceOptions, viewer 
             <ExpirySelect value={expiry} onChange={setExpiry} disabled={isPending} />
           </div>
           <button onClick={post} disabled={isPending || !content.trim()} className="cta-btn !px-4 !py-2.5 text-xs">
-            <Send className="h-3.5 w-3.5" /> Post
+            {isPending && !busy ? <><Spinner /> Posting…</> : <><Send className="h-3.5 w-3.5" /> Post</>}
           </button>
         </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
@@ -81,7 +92,8 @@ export default function AnnouncementManager({ messages, audienceOptions, viewer 
           {!shown.length && <p className="p-3 text-sm text-inkdim">Nothing matches “{q}”.</p>}
           {shown.map((m) =>
             editingId === m.id ? (
-              <div key={m.id} className="flex flex-col gap-3 p-3">
+              <div key={m.id} className="relative flex flex-col gap-3 p-3">
+                {busy?.id === m.id && <BusyOverlay label={busy.label} />}
                 <textarea value={draft.content} onChange={(e) => setDraft({ ...draft, content: e.target.value })} rows={3} className="field resize-y" disabled={isPending} />
                 <AudienceSelect value={draft.audience} onChange={(v) => setDraft({ ...draft, audience: v })} options={audienceOptions} disabled={isPending} />
                 <ExpirySelect value={draft.expiry} onChange={(x) => setDraft({ ...draft, expiry: x })} disabled={isPending} />
@@ -95,7 +107,8 @@ export default function AnnouncementManager({ messages, audienceOptions, viewer 
                 </div>
               </div>
             ) : (
-              <div key={m.id} className="flex items-start justify-between gap-3 p-3">
+              <div key={m.id} className="relative flex items-start justify-between gap-3 p-3">
+                {busy?.id === m.id && <BusyOverlay label={busy.label} />}
                 <div className="min-w-0">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <AudienceChip batchId={m.batch_id} options={audienceOptions} />

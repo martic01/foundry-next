@@ -13,6 +13,7 @@ the same transaction that adds it).
 7. `migration-roles-expiry.sql` (admin protection, expiry dates, teacher ownership + reports)
 8. `migration-student-reports.sql` (lets teachers report a student)
 9. `migration-per-course-access.sql` (block a student in one course only)
+10. `migration-security-2.sql` (database guards: safe links, size caps, one paid seat per course, admin role lock)
 
-A FRESH database: run `schema.sql`, then 3, 5, 6, 7, 8, 9 and finally 1 (steps 2 and 4 are
+A FRESH database: run `schema.sql`, then 3, 5, 6, 7, 8, 9, 10 and finally 1 (steps 2 and 4 are
 already built into `schema.sql`).

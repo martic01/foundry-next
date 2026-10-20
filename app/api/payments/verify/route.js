@@ -50,9 +50,12 @@ export async function POST(request) {
   // Teachers and admins have one role only -- they don't enrol as
   // students, so refuse before any money moves.
   {
-    const { data: me } = await sessionSupabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    const { data: me } = await sessionSupabase.from('profiles').select('role, blocked').eq('id', user.id).maybeSingle();
     if (me?.role === 'teacher' || me?.role === 'admin') {
       return NextResponse.json({ error: 'Teacher and admin accounts can\u2019t register for a course.' }, { status: 403 });
+    }
+    if (me?.blocked) {
+      return NextResponse.json({ error: 'This account\u2019s access has been restricted.' }, { status: 403 });
     }
   }
   const email = user.email;
@@ -139,6 +142,16 @@ export async function POST(request) {
   if (txn.amount !== course.priceNow * 100 || txn.currency !== 'NGN') {
     return NextResponse.json({ error: 'Payment amount does not match this course.' }, { status: 400 });
   }
+  // The payment must also have been started FOR THIS COURSE. Prices can
+  // match across courses, so amount + email alone would let one payment
+  // be claimed for a different (say, closed) course.
+  let paidMeta = txn.metadata;
+  if (typeof paidMeta === 'string') {
+    try { paidMeta = JSON.parse(paidMeta); } catch { paidMeta = null; }
+  }
+  if (!paidMeta || paidMeta.course !== course.key) {
+    return NextResponse.json({ error: 'This payment was made for a different course.' }, { status: 400 });
+  }
   // The reference alone isn't enough proof that THIS signed-in user is
   // the one who actually paid -- a reference is just a string, and this
   // endpoint has always accepted whatever reference the caller sends.
@@ -218,7 +231,7 @@ export async function POST(request) {
       params: {
         from_name: fullName,
         from_email: email,
-        to_email: 'aboyadematthew@gmail.com',
+        to_email: process.env.ADMIN_NOTIFY_EMAIL || 'aboyadematthew@gmail.com',
         subject: 'New Cohort Registration \u2014 ' + course.name,
         message:
           'New paid registration for ' + course.name + '.\n' +

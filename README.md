@@ -385,3 +385,9 @@ refuses the query.
 ## License
 
 MIT — © 2024 Aboyade Matthew.
+
+## Uploading videos and links (latest)
+- Choose several videos at once; they upload two at a time. Each video is its own job: a bad file, a dropped connection or a save error only fails that row, with a plain-language reason and a Retry button (a video that already uploaded but could not be saved is saved again without re-uploading).
+- `.mpeg/.mpg` (and mpe, m2v, ts, flv, ogv...) are accepted; non-MP4/WebM/MOV files are stored as their `.mp4` delivery address so students can play them. Cloudinary sometimes reads .mpeg as "mp3", so `mp3` is on the signed `allowed_formats` list in `lib/cloudinary-server.js`; the browser still refuses real audio/image/text files up front.
+- Error wording lives in `describeUploadError()` in `lib/cloudinary.js`.
+- Class links: "Several at once" takes one link per line (`Label | https://…`); each line succeeds or fails alone.
