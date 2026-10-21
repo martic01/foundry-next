@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { Link2, Plus, Pencil, Trash2, Check, X, AlertCircle } from 'lucide-react';
 import { addClassLink, addClassLinks, updateClassLink, deleteClassLink } from '../../app/admin/actions';
 import { useDialog } from '../ui/DialogProvider';
-import { AudienceSelect, AudienceChip, audienceOf, defaultAudienceFor, iconBtn, dangerBtn, ExpirySelect, ExpiryChip, canModify, ReportButton, BusyOverlay, Spinner } from './content-shared';
+import { AudienceSelect, AudienceChip, audienceOf, defaultAudienceFor, iconBtn, dangerBtn, ExpirySelect, ExpiryChip, canModify, ReportButton, BusyOverlay, Spinner, CollapsibleCard, ListHeading } from './content-shared';
 import SearchBox, { matchesQuery } from '../ui/SearchBox';
 import { defaultExpiry, expiryToIso, expiryFromIso } from '../../lib/expiry';
 import { safeHref } from '../../lib/safe-url';
@@ -120,9 +120,10 @@ export default function ClassLinkManager({ links, audienceOptions, viewer = { ro
 
   return (
     <div>
-      <div className="mb-5 flex flex-col gap-3 rounded-lg border border-line bg-surfaceMuted p-4">
+      <CollapsibleCard title="Post class links" hint="Add one link, or several at once" icon={<Link2 className="h-4 w-4" />}>
+      <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-ink">Post class links</p>
+          <span className="text-xs text-inkdim">Choose how many to add</span>
           <div className="inline-flex rounded-full border border-line bg-surface p-0.5 text-xs">
             <button type="button" onClick={() => setSeveral(false)} className={`rounded-full px-3 py-1 transition ${!several ? 'bg-brand text-white' : 'text-inkdim'}`}>One link</button>
             <button type="button" onClick={() => setSeveral(true)} className={`rounded-full px-3 py-1 transition ${several ? 'bg-brand text-white' : 'text-inkdim'}`}>Several at once</button>
@@ -171,9 +172,11 @@ export default function ClassLinkManager({ links, audienceOptions, viewer = { ro
             </button>
           )}
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
+      </CollapsibleCard>
+      {error && <p className="-mt-3 mb-4 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">{error}</p>}
 
+      <ListHeading count={links.length}>Posted links</ListHeading>
       {links.length > 3 && <SearchBox value={q} onChange={setQ} placeholder="Search links by title or address" className="mb-3" />}
       {!links.length ? (
         <p className="text-sm text-inkdim">No class links here yet.</p>

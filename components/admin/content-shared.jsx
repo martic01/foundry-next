@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Flag, Clock } from 'lucide-react';
+import { Flag, Clock, ChevronDown } from 'lucide-react';
 import { EXPIRY_PRESETS, isExpired, formatExpiry } from '../../lib/expiry';
 import { reportContent } from '../../app/admin/actions';
 
@@ -167,4 +167,34 @@ export function BusyOverlay({ label = 'Working…' }) {
 
 export function Spinner({ className = 'h-3.5 w-3.5' }) {
   return <span className={`inline-block animate-spin rounded-full border-2 border-current border-t-transparent ${className}`} aria-hidden="true" />;
+}
+
+// A collapsible "add something" card. Closed by default so the list of
+// what's already posted is what you see first. Children stay mounted
+// while closed, so a half-filled form or a running upload isn't lost.
+export function CollapsibleCard({ title, hint, icon, badge, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="mb-6 overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-3 bg-surfaceMuted px-4 py-3 text-left transition hover:bg-brand-light/40">
+        {icon && <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-brand-light text-brand">{icon}</span>}
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink">{title}</span>
+          {hint && <span className="block truncate text-xs text-inkdim">{hint}</span>}
+        </span>
+        {badge && <span className="flex-shrink-0 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white">{badge}</span>}
+        <ChevronDown className={`h-4 w-4 flex-shrink-0 text-inkdim transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={open ? 'row-in border-t border-line p-4' : 'hidden'}>{children}</div>
+    </div>
+  );
+}
+
+export function ListHeading({ children, count }) {
+  return (
+    <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
+      {children}
+      {typeof count === 'number' && <span className="rounded-full border border-line px-2 py-0.5 text-[11px] font-medium text-inkdim">{count}</span>}
+    </h3>
+  );
 }

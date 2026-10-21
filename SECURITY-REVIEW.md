@@ -33,3 +33,9 @@ Every admin action calls `requireAdmin()` / `requireStaff()` first; teachers are
 4. **EmailJS**: enable "Use Private Key" and restrict allowed domains.
 5. **Paystack**: confirm live keys only in the host's environment variables; consider a webhook so a payment completed with the browser closed still creates a seat.
 6. **Vercel**: add a firewall rate-limit rule (Server Actions in Next 14 have unpatched denial-of-service advisories), and commit a `package-lock.json` (none exists) so installs are repeatable (`npm ci`).
+
+## Addendum: certificates
+- `certificates` has RLS on with select-own / select-admin only; insert/update/delete are revoked from client roles. Only admin-checked server actions (service role) can award or revoke.
+- IDs: 12 chars from a 31-char alphabet via `crypto.randomInt`, UNIQUE in the database, retried on collision; one certificate per student per course.
+- Only users with role `student` enrolled (paid) in the course can be awarded; admin/teachers cannot.
+- Public verify route returns one record for one exact ID, is rate limited (10/min/IP per instance), and is `no-store`. It exposes name + email by design; to mask the email, change one line in `app/api/certificates/verify/route.js`.

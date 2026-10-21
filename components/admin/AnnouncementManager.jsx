@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { Send, Pencil, Trash2, Check, X } from 'lucide-react';
 import { postAnnouncement, updateAnnouncement, deleteAnnouncement } from '../../app/admin/actions';
 import { useDialog } from '../ui/DialogProvider';
-import { AudienceSelect, AudienceChip, audienceOf, defaultAudienceFor, iconBtn, dangerBtn, ExpirySelect, ExpiryChip, canModify, ReportButton, BusyOverlay, Spinner } from './content-shared';
+import { AudienceSelect, AudienceChip, audienceOf, defaultAudienceFor, iconBtn, dangerBtn, ExpirySelect, ExpiryChip, canModify, ReportButton, BusyOverlay, Spinner, CollapsibleCard, ListHeading } from './content-shared';
 import ExpandableText from '../ui/ExpandableText';
 import SearchBox, { matchesQuery } from '../ui/SearchBox';
 import { defaultExpiry, expiryToIso, expiryFromIso } from '../../lib/expiry';
@@ -67,8 +67,8 @@ export default function AnnouncementManager({ messages, audienceOptions, viewer 
 
   return (
     <div>
-      <div className="mb-5 flex flex-col gap-3 rounded-lg border border-line bg-surfaceMuted p-4">
-        <p className="text-sm font-semibold text-ink">New announcement</p>
+      <CollapsibleCard title="New announcement" hint="Write one for a batch or everyone" icon={<Send className="h-4 w-4" />}>
+      <div className="flex flex-col gap-3">
         <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={3} placeholder="Write a message…" className="field resize-y" disabled={isPending} />
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[14rem] flex-1">
@@ -81,9 +81,11 @@ export default function AnnouncementManager({ messages, audienceOptions, viewer 
             {isPending && !busy ? <><Spinner /> Posting…</> : <><Send className="h-3.5 w-3.5" /> Post</>}
           </button>
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
+      </CollapsibleCard>
+      {error && <p className="-mt-3 mb-4 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">{error}</p>}
 
+      <ListHeading count={messages.length}>Posted announcements</ListHeading>
       {messages.length > 3 && <SearchBox value={q} onChange={setQ} placeholder="Search announcements" className="mb-3" />}
       {!messages.length ? (
         <p className="text-sm text-inkdim">No announcements here yet.</p>

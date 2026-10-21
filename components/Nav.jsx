@@ -1,13 +1,10 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { BookOpen, LayoutDashboard, Crown, LogOut, Briefcase } from 'lucide-react';
+import { BookOpen, LayoutDashboard, Crown, LogOut } from 'lucide-react';
+import VerifyCertificate from './VerifyCertificate';
 import GoogleIcon from './icons/GoogleIcon';
 import { getUserSafe as getUser, getProfileSafe as getProfile } from '../lib/supabase/session';
 import { signOutAction } from '../app/actions';
-
-// PORTFOLIO_URL points back at the main (separate, static) portfolio site
-// -- update this once that site has its real deployed domain.
-const PORTFOLIO_URL = 'https://marticampf.vercel.app';
 
 // Two server components, split on purpose. <Nav> is the shell (logo,
 // Courses, Portfolio) and renders immediately; <NavAuth> is
@@ -34,13 +31,7 @@ export default function Nav() {
           <Suspense fallback={<span className="h-4 w-16 animate-pulse rounded bg-surfaceMuted" aria-hidden="true" />}>
             <NavAuth />
           </Suspense>
-          {/* Briefcase, not an arrow -- an arrow reads as "back/previous
-              page", not "this is a portfolio". Briefcase is the
-              conventional icon for that. */}
-          <a href={PORTFOLIO_URL} className="flex items-center gap-[0.35em] text-inkdim hover:text-ink" title="Portfolio">
-            <Briefcase className="h-[1.25em] w-[1.25em] flex-shrink-0" />
-            <span>Portfolio</span>
-          </a>
+          <VerifyCertificate />
         </div>
       </div>
     </nav>

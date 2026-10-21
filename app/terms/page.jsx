@@ -105,6 +105,42 @@ const SECTIONS = [
     items: [
       'Registration completes automatically the moment payment is confirmed — there is no separate account-creation step to finish afterward. If a technical issue means your registration doesn\u2019t complete despite a successful payment, contact us with your payment reference and we\u2019ll sort it out directly.'
     ]
+  },
+  {
+    title: '15. Batches, Teachers & Student Management',
+    items: [
+      'Each course runs in batches of up to 50 learners. You are placed in the batch for the course you registered for, and the programme director may move you to another batch of the same course when needed (for example to balance numbers).',
+      'Each batch has one or more teachers assigned by the programme director. A teacher can only see and work with the learners, class links, videos and announcements of the batches they teach.',
+      'The programme director may block a learner from a single course, remove a learner from a batch, or remove a learner from a course, for example for breaking the Code of Conduct (Section 10) or sharing access (Section 13). Blocking in one course does not affect your access to other courses you are enrolled in. Removal for misconduct does not entitle a refund (Section 3).',
+      'A learner who becomes a teacher uses the teacher portal only; the roles are not mixed.'
+    ]
+  },
+  {
+    title: '16. Class Videos, Links, Announcements & Uploads',
+    items: [
+      'Class videos, links and announcements are posted by the programme director or by the teacher of your batch. Each item is shown only to the batch (or all batches) it was posted for.',
+      'Posts can be set to expire. Once an item expires it is removed automatically, and an expired class video is also deleted from our video storage. Download anything you need before the expiry date shown on it.',
+      'Videos are uploaded straight to our video storage by signed-in staff only. You will be alerted when something new is posted for you, and announcements must be acknowledged before they close.',
+      'Class recordings and links are for enrolled learners of that batch only and may not be shared (see Sections 8 and 13).'
+    ]
+  },
+  {
+    title: '17. Reporting a Problem',
+    items: [
+      'Teachers cannot edit or delete what the programme director posts, but they can report it. Teachers can also report a learner to the programme director if there is a concern about conduct or attendance.',
+      'Reports are reviewed by the programme director, who may remove content, speak to the people involved, or take action under Sections 10, 13 and 15. A report is a request for review, not a finding.',
+      'Learners can raise a concern with the programme director at any time using the contact details in Section 21.'
+    ]
+  },
+  {
+    title: '18. Certificates',
+    items: [
+      'A certificate of completion is awarded only by the programme director, to learners who have completed the full course, individually or for a whole batch. Completing a course does not by itself guarantee a certificate.',
+      'Before you pay for a course you enter your full name. That is the name printed on your certificate exactly as typed, so please check the spelling. If it is wrong, tell the programme director before the certificate is awarded; an issued certificate is changed by revoking and re-issuing it.',
+      'Each certificate carries a unique alphanumeric ID. We store that ID together with your name, your email address, the course title and the award date so the certificate can be verified.',
+      'Anyone who has your certificate ID can use the \u201cVerify certificate\u201d button on our website to confirm it is genuine. The result shows your name, email address, course and award date. Share your ID only with people you are happy to see that information.',
+      'The programme director may revoke a certificate, for example if it was awarded in error or obtained dishonestly. Revoking deletes the ID and the stored name and email for that certificate, it stops passing verification, and the certificate can no longer be downloaded.'
+    ]
   }
 ];
 
@@ -113,7 +149,7 @@ export default function TermsPage() {
     <main className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="mb-2 font-display text-3xl font-extrabold text-ink">State AI Training — Terms &amp; Policy</h1>
       <p className="mb-8 text-sm italic text-inkdim">
-        Last updated: cohort launch (set a real date once this goes live).
+        Last updated: 20 October 2026 — added batches and teachers, uploads and expiry, reporting, and certificates (Sections 15–18 and 20).
       </p>
 
       <p className="mb-6 text-sm leading-relaxed text-inkdim">
@@ -137,15 +173,24 @@ export default function TermsPage() {
       ))}
 
       <section className="mb-6">
-        <h2 className="mb-3 border-b border-line pb-2 text-lg text-ink">15. Changes to These Terms</h2>
+        <h2 className="mb-3 border-b border-line pb-2 text-lg text-ink">19. Changes to These Terms</h2>
         <p className="text-sm leading-relaxed text-inkdim">
           These terms may be updated between cohorts. The version shown at
           the time you register is the one that applies to your enrollment.
         </p>
       </section>
 
+      <section className="mb-6">
+        <h2 className="mb-3 border-b border-line pb-2 text-lg text-ink">20. Your Information & Certificate Verification</h2>
+        <p className="text-sm leading-relaxed text-inkdim">
+          Besides the information in Section 12, we keep your batch, course enrolments, payment status and any certificate awarded to you.
+          Uploads and posts are stored with the account that made them. Certificate details are shown publicly only to someone who enters the exact certificate ID
+          (checks are rate limited so IDs cannot be guessed in bulk).
+        </p>
+      </section>
+
       <section>
-        <h2 className="mb-3 border-b border-line pb-2 text-lg text-ink">16. Questions or Disputes</h2>
+        <h2 className="mb-3 border-b border-line pb-2 text-lg text-ink">21. Questions or Disputes</h2>
         <p className="text-sm leading-relaxed text-inkdim">
           Reach out to{' '}
           <a href="mailto:aboyadematthew@gmail.com" className="text-brand underline">

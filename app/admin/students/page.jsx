@@ -1,5 +1,7 @@
 import { createClient } from '../../../lib/supabase/server';
 import { COURSES } from '../../../lib/courses';
+import { getCourseSettings } from '../../../lib/course-settings';
+import { effectivePrice } from '../../../lib/pricing';
 import { getSource, getPayment } from '../../../lib/payments';
 import StudentsTable from '../../../components/admin/StudentsTable';
 import AddStudentForm from '../../../components/admin/AddStudentForm';
@@ -8,6 +10,8 @@ export const metadata = { title: 'Students — The Foundry' };
 
 export default async function StudentsPage() {
   const supabase = await createClient();
+  const courseSettings = await getCourseSettings(supabase);
+  const prices = Object.fromEntries(Object.values(COURSES).map((c) => [c.key, effectivePrice(c, courseSettings[c.key]).now]));
 
   const regBase = 'id, user_id, course, batch_id, paystack_reference, amount_kobo, batches(label)';
   const [{ data: profiles }, { data: allBatches }, { data: assignments }, { data: teacherRows }, withPayment] = await Promise.all([
@@ -81,7 +85,7 @@ export default async function StudentsPage() {
         between batches (and so between teachers), use the batch picker under each course below.
       </p>
 
-      <AddStudentForm />
+      <AddStudentForm prices={prices} />
 
       <StudentsTable students={students} batchChoicesByCourse={batchChoicesByCourse} />
     </div>

@@ -9,9 +9,13 @@ import { TAGS, getAvailability, defaultSettingsFor, reopenDateToIso } from '../.
 import { COURSES, getCourse} from '../../lib/courses';
 import { parsePaymentInput, isAdminAdded, ADMIN_REF_PREFIX } from '../../lib/payments';
 import { resolveStudentAccount, absorbShellAccounts, resolveTeacherAccount } from '../../lib/accounts';
-import { COURSE_SETTINGS_TAG } from '../../lib/course-settings';
+import { COURSE_SETTINGS_TAG, getCourseSettings } from '../../lib/course-settings';
 import { notifyStudents } from '../../lib/notify';
 import { parseExpiry } from '../../lib/expiry';
+import { randomInt } from 'node:crypto';
+import { parsePriceInput, effectivePrice } from '../../lib/pricing';
+import { SITE_CONTACT_KEYS, SITE_CONTACTS_TAG, isValidPhone, isValidEmail } from '../../lib/site-contacts';
+import { certificateTitleFor, CODE_ALPHABET, CODE_LENGTH, validateCertificateName } from '../../lib/certificates';
 import { destroyCloudinaryVideo, publicIdFromCloudinaryUrl, getCloudinaryVideoCreatedAt, signVideoUpload, videoFolderFor } from '../../lib/cloudinary-server';
 
 // Every function here uses the caller's OWN session (via the regular,
@@ -56,7 +60,7 @@ async function requireAdmin() {
 // Content actions (class links, videos, announcements) are open to the
 // admin AND to teachers -- but a teacher only ever for batches they teach,
 // and never for "all batches". Postgres RLS enforces the same rule
-// (teaches_batch() in migration-teachers.sql); this gives a friendly
+// (teaches_batch() in supabase/2-updates.sql); this gives a friendly
 // error first and keeps the rule if RLS is ever misconfigured.
 async function requireStaff() {
   const supabase = await createClient();
@@ -141,7 +145,7 @@ export async function setRegistrationBlocked(registrationId, blocked) {
   if (error) {
     return {
       error: /blocked/.test(error.message)
-        ? 'Per-course blocking isn\u2019t set up yet \u2014 run supabase/migration-per-course-access.sql.'
+        ? 'Per-course blocking isn\u2019t set up yet \u2014 run supabase/2-updates.sql.'
         : dbError(error)
     };
   }
@@ -929,7 +933,7 @@ export async function reportContent(kind, itemId, message) {
       kind: 'report',
       title: 'Teacher report',
       body: `${me?.full_name || 'A teacher'} reported a ${kind}: ${text}`.slice(0, 300),
-      href: '/admin/reports'
+      href: '/admin/announcements?tab=reports'
     }));
     if (rows.length) await admin.from('notifications').insert(rows);
   } catch {
@@ -996,6 +1000,7 @@ export async function updateCourseSettings(courseKey, settings) {
 
   const course = getCourse(courseKey);
   if (!course) return { error: 'Unknown course.' };
+  if (course.contactOnly) return { error: 'This course is by enquiry; there is nothing to set here.' };
   const tag = settings?.tag || 'none';
   if (!TAGS[tag]) return { error: 'Unknown tag.' };
   const registrationOpen = !!settings?.registrationOpen;
@@ -1023,12 +1028,26 @@ export async function updateCourseSettings(courseKey, settings) {
   if (!closing) closedAt = null;
   else if (wasOpen || !closedAt) closedAt = new Date().toISOString();
 
+  // Price: only touched when the form sends it. { reset: true } goes back
+  // to the defaults in lib/courses.js; otherwise price + optional "was".
+  let priceFields = {};
+  if (settings?.pricing) {
+    if (settings.pricing.reset) {
+      priceFields = { pricing_custom: false, price_now: null, price_was: null };
+    } else {
+      const p = parsePriceInput(settings.pricing.priceNow, settings.pricing.priceWas);
+      if (p.error) return { error: p.error };
+      priceFields = { pricing_custom: true, price_now: p.now, price_was: p.was };
+    }
+  }
+
   const { error } = await supabase.from('course_settings').upsert({
     course: courseKey,
     registration_open: registrationOpen,
     tag,
     reopen_at: reopenAt,
     registration_closed_at: closedAt,
+    ...priceFields,
     updated_at: new Date().toISOString(),
     updated_by: user?.id
   });
@@ -1097,7 +1116,7 @@ export async function lockNoteDay(course, day) {
 // If the payment-status migration hasn't been run, say exactly what to do
 // instead of surfacing a raw Postgres "column does not exist" error.
 const MIGRATION_HINT =
-  'The database needs one update first: run supabase/migration-payment-status.sql in the Supabase SQL Editor, then try again.';
+  'The database needs one update first: run supabase/2-updates.sql in the Supabase SQL Editor, then try again.';
 const needsMigration = (error) => /payment_status|amount_due_kobo|payment_method/.test(error?.message || '');
 
 export async function adminAddStudent(fullName, email, courseKey, age, payment) {
@@ -1115,7 +1134,8 @@ export async function adminAddStudent(fullName, email, courseKey, age, payment) 
 
   // Validate the payment BEFORE touching anything: a typo in the amount
   // must never leave behind a half-created account.
-  const parsed = parsePaymentInput(payment, course.priceNow);
+  const livePrice = effectivePrice(course, (await getCourseSettings(createAdminClient()))[course.key]).now;
+  const parsed = parsePaymentInput(payment, livePrice);
   if (parsed.error) return { error: parsed.error };
 
   const admin = createAdminClient();
@@ -1131,6 +1151,13 @@ export async function adminAddStudent(fullName, email, courseKey, age, payment) 
   const account = await resolveStudentAccount(admin, { email: address, fullName: name });
   if (account.error) return { error: account.error };
   const userId = account.userId;
+
+  // The name typed here becomes their certificate name unless they
+  // already gave one themselves (best effort -- needs supabase/2-updates.sql).
+  try {
+    const v = validateCertificateName(name);
+    if (v.ok) await admin.from('profiles').update({ certificate_name: v.name }).eq('id', userId).is('certificate_name', null);
+  } catch { /* ignore */ }
 
   // If an earlier manual add left a duplicate account for this email
   // that the student never signed in to, fold its registrations in first
@@ -1200,7 +1227,8 @@ export async function updateRegistrationPayment(registrationId, payment) {
   if (!isAdminAdded(reg)) return { error: 'Paystack payments are verified automatically and can\u2019t be edited.' };
 
   const course = COURSES[reg.course];
-  const parsed = parsePaymentInput(payment, course?.priceNow);
+  const livePrice = course ? effectivePrice(course, (await getCourseSettings(createAdminClient()))[course.key]).now : undefined;
+  const parsed = parsePaymentInput(payment, livePrice);
   if (parsed.error) return { error: parsed.error };
 
   const { error } = await supabase.from('registrations').update(parsed.row).eq('id', registrationId);
@@ -1226,5 +1254,153 @@ export async function adminDeleteStudent(profileId) {
   if (error) return { error: dbError(error) };
 
   refreshEverything();
+  return { ok: true };
+}
+
+
+// ---------- Certificates (admin only) ----------
+// Awarding and revoking use the service-role client AFTER requireAdmin():
+// the certificates table has no client write policies at all, so this is
+// the only way a certificate can come into or go out of existence.
+
+function newCertCode() {
+  let c = '';
+  for (let i = 0; i < CODE_LENGTH; i++) c += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
+  return c;
+}
+
+// items: [{ userId, course }]. Each one succeeds or fails alone.
+async function awardMany(items, adminUserId) {
+  const db = createAdminClient();
+  const results = [];
+  let awarded = 0;
+  for (const it of items) {
+    const userId = it?.userId;
+    const course = it?.course;
+    const title = certificateTitleFor(course);
+    if (typeof userId !== 'string' || !UUID_RE.test(userId) || !title) { results.push({ userId, error: 'Unknown student or course.' }); continue; }
+    let profRes = await db.from('profiles').select('id, full_name, certificate_name, email, role').eq('id', userId).maybeSingle();
+    if (profRes.error) profRes = await db.from('profiles').select('id, full_name, email, role').eq('id', userId).maybeSingle(); // name column not migrated yet
+    const profile = profRes.data;
+    const [{ data: reg }] = await Promise.all([
+      db.from('registrations').select('id').eq('user_id', userId).eq('course', course).eq('status', 'paid').limit(1).maybeSingle()
+    ]);
+    if (!profile || profile.role !== 'student') { results.push({ userId, error: 'Only students can receive a certificate.' }); continue; }
+    if (!reg) { results.push({ userId, error: 'This student isn\u2019t enrolled in that course.' }); continue; }
+    const name = String(profile.certificate_name || '').trim() || String(profile.full_name || '').trim() || String(profile.email || '').split('@')[0];
+    if (!name || !profile.email) { results.push({ userId, error: 'This student has no name or email on file.' }); continue; }
+
+    let done = false;
+    for (let attempt = 0; attempt < 6 && !done; attempt++) {
+      const code = newCertCode();
+      const { error } = await db.from('certificates').insert({
+        code, user_id: userId, course, student_name: name.slice(0, 200), student_email: profile.email, course_title: title, awarded_by: adminUserId
+      });
+      if (!error) { done = true; results.push({ userId, ok: true, code }); awarded += 1; break; }
+      if (error.code === '23505') {
+        // Either this student already has this certificate, or the random id collided (then try again).
+        const { data: existing } = await db.from('certificates').select('id').eq('user_id', userId).eq('course', course).maybeSingle();
+        if (existing) { done = true; results.push({ userId, error: 'Already awarded.' }); }
+        continue;
+      }
+      done = true;
+      results.push({ userId, error: 'Couldn\u2019t save this one. Try again.' });
+    }
+    if (!done) results.push({ userId, error: 'Couldn\u2019t create a unique id. Try again.' });
+    const last = results[results.length - 1];
+    if (last?.ok) {
+      await db.from('notifications').insert({ user_id: userId, kind: 'certificate', title: 'Your certificate is ready', body: title, href: '/dashboard/certificate' }).then(() => {}, () => {});
+    }
+  }
+  return { awarded, results };
+}
+
+async function adminId() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id || null;
+}
+
+export async function awardCertificates(items) {
+  const a = await requireAdmin();
+  if (!a.ok) return { error: a.error };
+  if (!Array.isArray(items) || !items.length) return { error: 'Pick at least one student.' };
+  if (items.length > 100) return { error: 'Award at most 100 at a time.' };
+  const out = await awardMany(items, await adminId());
+  revalidatePath('/admin/certificates');
+  revalidatePath('/dashboard/certificate');
+  return { ok: true, ...out };
+}
+
+// Everyone in a batch (their enrolment in that batch's course).
+export async function awardBatchCertificates(batchId) {
+  const a = await requireAdmin();
+  if (!a.ok) return { error: a.error };
+  if (typeof batchId !== 'string' || !UUID_RE.test(batchId)) return { error: 'Unknown batch.' };
+  const db = createAdminClient();
+  const { data: regs, error } = await db.from('registrations').select('user_id, course, profiles(role)').eq('batch_id', batchId).eq('status', 'paid');
+  if (error) return { error: dbError(error) };
+  const items = (regs || []).filter((r) => r.profiles?.role === 'student').map((r) => ({ userId: r.user_id, course: r.course }));
+  if (!items.length) return { error: 'There are no students in that batch.' };
+  if (items.length > 100) return { error: 'That batch has more than 100 students; award in groups from the list.' };
+  const out = await awardMany(items, await adminId());
+  revalidatePath('/admin/certificates');
+  revalidatePath('/dashboard/certificate');
+  return { ok: true, ...out };
+}
+
+// Revoke = delete the row (id, name, email and all). The student's tab locks again.
+export async function revokeCertificates(certIds) {
+  const a = await requireAdmin();
+  if (!a.ok) return { error: a.error };
+  if (!Array.isArray(certIds) || !certIds.length) return { error: 'Pick at least one certificate.' };
+  if (certIds.length > 200 || !certIds.every((id) => typeof id === 'string' && UUID_RE.test(id))) return { error: 'Invalid selection.' };
+  const db = createAdminClient();
+  const { data, error } = await db.from('certificates').delete().in('id', certIds).select('id');
+  if (error) return { error: dbError(error) };
+  revalidatePath('/admin/certificates');
+  revalidatePath('/dashboard/certificate');
+  return { ok: true, revoked: (data || []).length };
+}
+
+
+// Fix a typo in the name that will go on someone's certificate. Only before
+// it is awarded -- an issued certificate keeps the name it was issued with
+// (revoke and award again to change it).
+export async function setCertificateName(userId, rawName) {
+  const a = await requireAdmin();
+  if (!a.ok) return { error: a.error };
+  if (typeof userId !== 'string' || !UUID_RE.test(userId)) return { error: 'Unknown student.' };
+  const v = validateCertificateName(rawName);
+  if (v.error) return { error: v.error };
+  const db = createAdminClient();
+  const { error } = await db.from('profiles').update({ certificate_name: v.name }).eq('id', userId);
+  if (error) return { error: 'Couldn\u2019t save the name. Has supabase/2-updates.sql been run?' };
+  revalidatePath('/admin/certificates');
+  return { ok: true, name: v.name };
+}
+
+
+// ---------- HR / workspace contact details (admin only) ----------
+export async function updateSiteContact(key, values) {
+  const a = await requireAdmin();
+  if (!a.ok) return { error: a.error };
+  if (!SITE_CONTACT_KEYS.includes(key)) return { error: 'Unknown section.' };
+  const whatsapp = String(values?.whatsapp || '').trim();
+  const email = String(values?.email || '').trim();
+  if (!isValidPhone(whatsapp)) return { error: 'Enter a valid WhatsApp number, for example 08027245572.' };
+  if (!isValidEmail(email)) return { error: 'Enter a valid email address.' };
+  const value = { whatsapp: whatsapp.slice(0, 30), email };
+  if (key === 'workspace') {
+    const address = String(values?.address || '').trim();
+    if (address.length < 5 || address.length > 200) return { error: 'Enter the workspace address (5 to 200 characters).' };
+    value.address = address;
+  }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase.from('site_settings').upsert({ key, value, updated_at: new Date().toISOString(), updated_by: user?.id });
+  if (error) return { error: dbError(error) };
+  revalidateTag(SITE_CONTACTS_TAG);
+  revalidatePath('/');
   return { ok: true };
 }

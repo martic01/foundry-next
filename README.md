@@ -1,393 +1,299 @@
-# The Foundry — State AI Training
+# The Foundry
 
-A standalone Next.js + Tailwind app for the cohort marketplace: course
-details, pricing, age eligibility, Google sign-in, Paystack payment, a
-student dashboard, and an admin portal for managing batches, class
-links, and broadcast announcements. Split out from the main portfolio on
-purpose — see "Why a separate project" below.
+The Foundry is a cohort-based training and services platform built with Next.js. It brings together a public course marketplace, Google sign-in, online registration and payment, and separate student, teacher, and admin portals.
 
-**Relationship to the main portfolio:** the portfolio (a separate, static
-webpack site) still owns the "Enter The Foundry" door in the interactive
-room and links here. This app owns everything past that.
+The project is designed to run as a web application with Supabase providing authentication and the Postgres database. Paystack handles online course payments, and Cloudinary stores class videos. HR training and workspace services are offered through contact enquiries rather than online checkout.
 
-**Auth model:** Google sign-in only, for everyone — students and the
-admin alike. There is no app-managed password anywhere in this project.
-Google itself proves the email and handles the credential, so there's
-nothing for this app to store, hash, or leak.
+This repository contains the application beyond the public portfolio/marketing site; that separate site links visitors to The Foundry.
+
+## Contents
+
+- [Features](#features)
+- [Technology](#technology)
+- [Getting started](#getting-started)
+- [Configuration](#configuration)
+- [Database setup](#database-setup)
+- [Google sign-in setup](#google-sign-in-setup)
+- [Promoting the first admin](#promoting-the-first-admin)
+- [Application routes](#application-routes)
+- [Project structure](#project-structure)
+- [Security and handling secrets](#security-and-handling-secrets)
+- [Deployment](#deployment)
+- [Development commands](#development-commands)
+
+## Features
+
+### Public marketplace
+
+- Landing page with course cards, cohort information, FAQs, and a 3D robot illustration.
+- Course catalogue for the web-development Foundations and React stages, Cybersecurity + AI, and HR.
+- Course availability labels, prices, and optional crossed-out original prices. Admins can change availability and pricing without editing application code.
+- HR and workspace enquiry sections with contact details managed in the admin portal. HR is enquiry-based and does not offer online checkout.
+- Terms page, public certificate verification, and sign-in and registration entry points.
+
+### Registration and payments
+
+- Google OAuth through Supabase Auth is the sign-in method for students, teachers, and admins.
+- Registration collects the student's name and date of birth, checks the minimum age in the interface and on the server, and requires agreement to the laptop requirements.
+- Paystack checkout is followed by server-side transaction verification before an online registration is recorded. The browser's payment callback alone is not treated as proof of payment.
+- Successful registrations are assigned to a suitable course batch, subject to capacity and batch status.
+- HR registration is handled through WhatsApp or email enquiries rather than Paystack.
+- Admins can add students directly and record paid, part-paid, pending, or complimentary enrolments. Receipts and balances reflect the recorded payment status.
+- Students can view enrolment information and receipts in their dashboard.
+
+### Student portal
+
+- Overview of profile, enrolments, batches, class start dates, and payment status.
+- Course links and videos, announcements, and notifications relevant to the student's batch.
+- A live class timer and status for the student's batch.
+- Course notes released according to admin-controlled unlock settings.
+- Installation guidance and checklists for VS Code and Git.
+- Certificates when awarded, plus public verification by certificate ID.
+- Other-course information and a place to find courses beyond the student's current enrolments.
+
+### Teacher portal
+
+- Teachers see only the batches assigned to them.
+- Batch overview, student lists, recent class activity, and class timer/status.
+- Add or manage batch content such as class links, videos, notes, and announcements, subject to permissions.
+
+### Admin portal
+
+- Overview of students, payments, and activity.
+- Create and manage course batches, capacities, labels, start dates, and the nine-week class timer. Move students between same-course batches, block access, or remove enrolments.
+- Control registration availability, course tags, scheduled reopening, and custom course pricing.
+- Manage students and teachers, including teacher-to-batch assignments and directly added enrolments.
+- Manage class links, videos, announcements, reports, and course note unlocks. Content can target a batch or all batches.
+- View payment totals and ledger filters; update manually recorded payments.
+- Award, edit, and revoke certificates.
+- Update HR and workspace enquiry contact details.
+
+### Platform behavior
+
+- Row Level Security (RLS) policies in Postgres control access to application data.
+- Supabase Realtime supports live updates in the portals, with polling where appropriate.
+- Expired announcements, links, and videos are cleaned up by a scheduled Vercel Cron endpoint.
+- Video uploads are signed by the server and uploaded to Cloudinary. Batch video uploads report individual failures and allow retries.
+- Responsive layouts, accessible in-app confirmation dialogs, loading states, and error pages.
+
+## Technology
+
+- Next.js 14 App Router and React 18
+- Tailwind CSS
+- Supabase: Postgres, Auth, Row Level Security, and Realtime
+- Paystack Inline for checkout and server-side transaction verification
+- Cloudinary for class-video uploads and delivery
+- EmailJS REST API for registration notifications
+- Three.js for the landing-page 3D illustration
 
 ## Getting started
 
-```bash
+### Prerequisites
+
+- Node.js 18.17 or newer and npm
+- A Supabase project
+- Google OAuth credentials configured as a Supabase Auth provider
+- A Paystack account for online payments
+- Cloudinary credentials if you will use video upload and management
+- EmailJS credentials if you want registration notification emails
+
+### Install and run
+
+From the repository root:
+
+```powershell
 npm install
-cp .env.example .env.local   # then fill in real values -- see below
+Copy-Item .env.example .env.local
 ```
 
-Then set up the database (one-time):
+Fill in the values in `.env.local`, following [Configuration](#configuration), then set up Supabase by following [Database setup](#database-setup) and [Google sign-in setup](#google-sign-in-setup).
 
-1. Create a free project at [supabase.com](https://supabase.com).
-2. Project Settings → API Keys — copy the Project URL and the
-   **Publishable key** (this is the modern name for what used to be
-   called the "anon key" — same thing, new name) into `.env.local`.
-3. Same page — copy the **Secret key** (the modern name for the old
-   "service_role key") into `.env.local` too
-   (`SUPABASE_SERVICE_ROLE_KEY`). It may be a separate section/tab from
-   the Publishable key, or need a "Create new secret key" click. **Never**
-   put this one behind `NEXT_PUBLIC_`.
-4. SQL Editor → New query → paste the entire contents of
-   `supabase/schema.sql` → Run.
-5. Turn on Google sign-in — see "Google sign-in setup" below (required;
-   there's no other way to register or log in).
-6. Register once through `/register` like a normal student (this creates
-   your own `auth.users` + `profiles` row), then in the SQL Editor run:
-   ```sql
-   update profiles set role = 'admin' where email = 'you@example.com';
-   ```
-   That's how you get into `/admin` — a real login (see "Why not a
-   secret tap-the-bot password" below for why it's built this way).
+Start the development server:
 
-Also needed: a Paystack account — test keys from Settings → API Keys &
-Webhooks.
-
-```bash
+```powershell
 npm run dev
 ```
 
-Visit `http://localhost:3000`.
+Open `http://localhost:3000`.
 
-## Environment variables
+## Configuration
 
-Full list and explanation in `.env.example` / `.env.local` itself — the
-comments there walk through exactly why each key is (or isn't) safe to
-expose, and how the same values move to production (short version: they
-go into your hosting platform's own "Environment Variables" setting —
-e.g. Vercel's dashboard — not into a file you upload).
+`.env.example` lists the names of the supported environment variables with blank values. Copy it to `.env.local` for local development and set actual values only in that ignored local file or in your deployment provider's environment-variable settings.
 
-Two categories:
+| Variable | Use | Exposure |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Browser-visible |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase publishable/anon key; access remains governed by RLS | Browser-visible |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side Supabase admin client for trusted server operations | Secret; server only |
+| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | Paystack checkout | Browser-visible |
+| `PAYSTACK_SECRET_KEY` | Server-side Paystack transaction verification | Secret; server only |
+| `NEXT_PUBLIC_EMAILJS_PUBLIC_KEY` | EmailJS public identifier used by the server-side email request | Public identifier |
+| `NEXT_PUBLIC_EMAILJS_SERVICE_ID` | EmailJS service configuration | Public identifier |
+| `NEXT_PUBLIC_EMAILJS_TEMPLATE_ID` | EmailJS registration notification template | Public identifier |
+| `EMAILJS_PRIVATE_KEY` | EmailJS private access credential | Secret; server only |
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Cloudinary account name used for media delivery and signed uploads | Browser-visible |
+| `CLOUDINARY_API_KEY` | Cloudinary server-side upload signing and media management | Secret; server only |
+| `CLOUDINARY_API_SECRET` | Cloudinary server-side signing and media management | Secret; server only |
+| `NEXT_PUBLIC_VSCODE_INSTALLER_URL` | Optional VS Code installer download link | Browser-visible URL |
+| `NEXT_PUBLIC_GIT_INSTALLER_URL` | Optional Git installer download link | Browser-visible URL |
+| `CRON_SECRET` | Protects the scheduled content cleanup endpoint | Secret; server only |
+| `ADMIN_NOTIFY_EMAIL` | Optional destination for new-registration notifications | Configuration; not an authentication credential |
 
-- **`NEXT_PUBLIC_*`** — safe to expose to the browser (Supabase anon key,
-  Paystack public key, EmailJS public key). Next.js only ships
-  `NEXT_PUBLIC_`-prefixed vars to the client; everything else stays
-  server-only automatically, stripped out at build time.
-- **Everything else** (`SUPABASE_SERVICE_ROLE_KEY`, `PAYSTACK_SECRET_KEY`,
-  `EMAILJS_PRIVATE_KEY`) — real secrets, used only inside
-  `app/api/payments/verify/route.js` and Server Actions. This — a
-  server-only environment variable, gitignored locally and set directly
-  in your hosting platform for production — **is** the standard, correct
-  place for a secret like this in a Next.js app, not a workaround. Never
-  add `NEXT_PUBLIC_` to these three, and never move them into source code
-  or any file that gets committed.
+Variables prefixed with `NEXT_PUBLIC_` are compiled into browser-delivered code and must be treated as public. Never put a password, private key, or other secret in a `NEXT_PUBLIC_*` variable. The Supabase anon key and Paystack public key are intended to be public; database access must still be correctly protected by RLS.
 
-## Google sign-in setup (required)
+Never paste real values into this README, source code, screenshots, issue reports, or committed configuration. If a credential is exposed, revoke or rotate it with its provider. Keep `.env.local` untracked; commit `.env.example` with empty values only.
 
-Every sign-in and registration in this app goes through Google, via
-Supabase's built-in provider:
+## Database setup
 
-1. [Google Cloud Console](https://console.cloud.google.com) → APIs &
-   Services → Credentials → Create Credentials → OAuth client ID → type
-   "Web application".
-2. Authorized redirect URI: `https://<your-project-ref>.supabase.co/auth/v1/callback`
-   (find `<your-project-ref>` in your Supabase project URL). This is
-   Supabase's own callback, not this app's — Supabase forwards the person
-   back to `/auth/callback` in this app afterward.
-3. Copy the generated **Client ID** and **Client Secret**.
-4. Supabase dashboard → Authentication → Providers → Google → paste both
-   in there and enable the provider.
+Run SQL files in the Supabase project's SQL Editor in the order documented in [`supabase/RUN-ORDER.md`](supabase/RUN-ORDER.md). For a new database, the current order is:
 
-Note this Client ID/Secret live in Supabase's dashboard, not in this
-app's `.env.local` — Supabase holds them and handles the OAuth exchange;
-this app only ever sees the resulting session.
+1. `supabase/schema.sql`
+2. `supabase/1-enums.sql` — run this file by itself
+3. `supabase/2-updates.sql`
+4. `supabase/3-pricing-and-contacts.sql`
 
-## How registration actually works now
+For an existing database, follow the appropriate upgrade instructions in `supabase/RUN-ORDER.md`; do not blindly run the fresh-install schema over a populated database. The SQL files contain schema, functions, and access policies—not application secrets or production data. Keep them under version control.
 
-1. **Sign in with Google** — this is the email verification. There is no
-   separate code/OTP step and nothing for the person to type but their
-   Google credential (on Google's own page, not this app's).
-2. **Age eligibility** — checked both in the UI (so people see it
-   immediately) and again server-side in `/api/payments/verify` (so the
-   UI check isn't the only thing standing between an ineligible age
-   range and a completed payment).
-3. **Payment** — Paystack's popup runs client-side, but the "did this
-   really succeed" question is answered by `/api/payments/verify`
-   calling Paystack's own verify-transaction endpoint server-to-server
-   with the secret key. The client-side `onSuccess` callback alone is
-   never trusted; it's just what triggers the real check.
-4. **Registration** — completes automatically, in the same request,
-   right after payment is confirmed: profile saved (name/email come from
-   the Google session, not a form), assigned to a batch (oldest batch for
-   that course with fewer than 50 paid students that hasn't ended, else a new one — see
-   `assign_batch` in `supabase/schema.sql`), registration recorded. No
-   separate "finish creating your account" step exists to abandon.
+The database schema includes the main application entities: profiles, courses and registrations, batches, payments, class content, announcements, notes, teacher assignments, notifications, certificates, and site settings. RLS policies are a core part of the application's authorization model. Review the schema policies before changing database access.
 
-## Batch controls (admin)
+## Google sign-in setup
 
-> **Upgrading an existing project?** Run
-> `supabase/migration-batch-controls.sql` once in the Supabase SQL Editor
-> (safe to re-run). Fresh installs get everything from `schema.sql`.
+The application uses Supabase Auth with Google as its OAuth provider:
 
-- **Batches** (`/admin/batches`) — 50 seats each. Rename a batch (students
-  see the name), set its course start date, and run its **9-week class
-  timer**: Start, Pause, Resume, Restart, End. State machine lives in
-  `lib/batch-timer.js`. Each batch lists its students; each can be
-  blocked, moved to another batch of the same course (capacity-checked),
-  removed from the batch, or deleted permanently (auth + profile +
-  registrations). Paid students with no batch show in an "Unassigned"
-  box at the top.
-- **Content** (`/admin/content`) — class links, videos and announcements.
-  Each is aimed at **one batch or all batches**, and can be edited
-  (including changing the audience) or deleted. Links can be replaced by
-  editing the URL.
-- **Registration** (`/admin/registration`) — per course: open/closed
-  switch and a tag (Coming soon, Ended, Limited seats available, All seats
-  taken). Closing needs a **reopen date or "until further notice"**; on
-  the date, registration reopens by itself. Coming soon / Ended / All
-  seats taken also close registration; Limited seats is display-only.
-  A payment *started before* the close is still honoured by
-  `/api/payments/verify`, so nobody is charged and refused.
-- **Student side** — a live class-status banner (On / Paused / Ended,
-  with weeks · days · hours · mins · secs countdown) at the top of every
-  dashboard page, plus batch name, course details, start date and payment
-  status on Overview. Updates live via Supabase Realtime, with polling as
-  a fallback.
+1. Create a Web application OAuth client in Google Cloud Console.
+2. Add the Supabase Auth callback URL shown in the Supabase dashboard to the OAuth client's authorized redirect URIs.
+3. In Supabase, open **Authentication → Providers → Google**, enable the provider, and enter the Google OAuth client credentials.
+4. Add the local application callback (for development) and production application URL to Supabase's allowed redirect URLs. The app callback route is `/auth/callback`.
+5. Set the Supabase project URL and anon/publishable key in your local environment.
 
-## Payment status for directly-added students
+Google OAuth client credentials belong in the provider configuration in Supabase. They are not needed in the application's README or source files.
 
-> **Upgrading?** Run `supabase/migration-payment-status.sql` once in the
-> Supabase SQL Editor (safe to re-run). Fresh installs get it from
-> `schema.sql`.
+## Promoting the first admin
 
-On **Admin → Students → "Add a student directly"** just pick a status —
-the amount defaults to the course price, so the usual case is one tap.
-(Paid and Pending have a folded "Change amount…" link if you need it;
-Part payment shows its fields straight away.)
+After Google sign-in has created your account and profile, promote that account using the Supabase SQL Editor. Replace the placeholder with the email address of the account you control:
 
-| Status | Records | Receipt |
-|---|---|---|
-| **Paid** | amount received (defaults to the course price) + method | yes |
-| **Part payment** | received so far + total agreed + method → balance | yes (shows balance) |
-| **Payment pending** | total agreed, nothing received | no |
-| **Complimentary** | nothing | no |
-
-Method is cash, bank transfer, POS or other. The amount, method and
-status are validated server-side **before** any account is created
-(`lib/payments.js`, unit-tested), and adding someone already enrolled in
-that course is refused.
-
-- **Payment stats:** the Payments page opens with **Collected** and
-  **Outstanding**, then a tile per status — *All, Paid, Part payment,
-  Pending, Complimentary* — each with its count and the amount still owed.
-  Click a tile to filter the ledger, and narrow further by **Manual** or
-  **Paystack**; the tile counts and headline money always cover everyone,
-  while a line under the filters shows the totals for what's in view. The
-  Overview shows the same stats, and its tiles link straight into the
-  matching filtered ledger (`/admin/payments?status=pending`). All of it
-  comes from one function, `summarizePayments()` in `lib/payments.js`
-  (unit-tested), so the two pages can't disagree.
-- **Payment status on every student, and filters:** **Students** shows,
-  for each course a student holds, its source chip (Manual / Paystack),
-  its payment chip (Paid / Part payment / Payment pending / Complimentary)
-  and the amounts (e.g. "₦50,000 paid · ₦100,000 balance"). Filter by
-  payment status (chips show how many students are in each) and by how
-  they registered. Filters apply to the *same* registration — "Paid" +
-  "Manual" means one registration that is both — and a student with
-  several registrations matches if any one does (the rest are dimmed).
-  Inside each **batch**, every student shows their payment chip and
-  amounts, and the status counts above the list filter that batch.
-- **Edit later:** **Admin → Payments** shows every enrollment with its
-  status; directly-added students get an edit button (pending → paid,
-  record another instalment). Paystack payments are verified against
-  Paystack and are read-only.
-- **Access is separate from payment.** `registrations.status` still
-  means "has access"; `payment_status` is the money. An enrolled student
-  has full access whatever the status — use Block / Remove to cut access.
-- **Where it shows:** the Payments ledger (collected vs outstanding), an
-  amber "Owes ₦X" chip beside the student in their batch, the student's
-  own Overview card, and receipts (a part payment is labelled as such and
-  shows the balance).
-
-## Pushing to git
-
-- **Do commit `supabase/`** (`schema.sql` + the `migration-*.sql` files).
-  It holds table definitions and security policies only — no keys, no
-  data — and the schema isn't what protects your data anyway (Row Level
-  Security does). Keeping it in git is what lets you rebuild or review the
-  database later.
-- **Never commit `.env.local`.** It holds `PAYSTACK_SECRET_KEY` and
-  `SUPABASE_SERVICE_ROLE_KEY`; the service-role key bypasses every
-  security rule. `.gitignore` already excludes it. Put the same values in
-  your host's environment-variable settings (e.g. Vercel → Settings →
-  Environment Variables). `.env.example` (empty placeholders) *is*
-  committed so others know what to set.
-- Before your first push, check nothing sensitive is tracked:
-  `git ls-files | grep -i env` should list only `.env.example`.
-  If `.env.local` was **ever** committed, deleting it isn't enough — it
-  stays in history, so rotate the Paystack secret key and the Supabase
-  service-role key.
-
-## How manually-added students get connected to their login
-
-`lib/accounts.js` (unit-tested against a fake Supabase client):
-
-- **Find-or-create by email, case-insensitively** — `Jane@Gmail.com` and
-  `jane@gmail.com` are the same person; `_` in an address is matched
-  literally (`john_doe` never matches `johnXdoe`). An auth account that
-  exists with no profile row is repaired instead of failing with "already
-  registered". An admin's email is refused as a student.
-- **Claim at first sign-in** — Supabase doesn't always attach a Google
-  sign-in to an account an admin pre-created; it can make a second one,
-  leaving the registration on an account the student never uses. At
-  sign-in (`app/auth/callback/route.js`), registrations on any *student*
-  account with the same email that has **never signed in** are moved onto
-  the account that just did, and the empty one is removed. It only runs
-  for a verified email, never merges two accounts that have both signed
-  in, never touches admins, and leaves the old account alone if the move
-  fails. This also heals duplicates created before this fix.
-- Adding someone who is already enrolled in that course is refused, and
-  the message names their course and batch.
-- **How they registered is labelled** on every student: a violet
-  **Manual** chip (added by an admin) or a blue **Paystack** chip
-  (registered and paid online). It's derived from the payment reference
-  (`getSource()` in `lib/payments.js`), so it's correct for existing
-  registrations too. It shows on Students (per course, since one student
-  can have one of each), on each student inside a batch, and on the
-  Payments ledger.
-
-## In-app dialogs (no browser `confirm()` / `alert()`)
-
-`components/ui/DialogProvider.jsx` is mounted once in `app/layout.jsx`.
-Any client component can use it:
-
-```jsx
-const { confirm, alert } = useDialog();
-
-const ok = await confirm({
-  title: 'Delete announcement?',
-  message: 'Students will no longer see it.',
-  confirmLabel: 'Delete',
-  tone: 'danger'            // 'default' | 'danger' | 'success' | 'error'
-});
-if (!ok) return;
-
-await alert({ title: 'Saved', message: 'Batch renamed.', tone: 'success' });
+```sql
+update public.profiles
+set role = 'admin'
+where email = 'your-account@example.com';
 ```
 
-Both return Promises, so call sites read like the native ones. A plain
-string works as shorthand (`confirm('Sure?')`). Dialogs queue if several
-are requested at once, close on Escape / backdrop click, trap Tab focus,
-lock page scroll, and return focus to the button that opened them. For
-`tone: 'danger'` confirms, **Cancel** is focused by default so a stray
-Enter can't delete anything.
+Check that the intended profile was updated before signing in to `/admin`. Do not put your real email address or credentials in committed documentation. Admin authorization is based on the role stored in the database, not on a hidden URL or client-side password.
 
-## Performance notes
+## Application routes
 
-- `lib/supabase/session.js` — `getUser()` / `getProfile()` are memoised
-  **per request** (React `cache`), so the root Nav, the portal layout and
-  the page share one Supabase Auth call and one profile query instead of
-  repeating them. Server Actions and route handlers deliberately do *not*
-  use these: they verify fresh, since they're the real authorization
-  boundary.
-- Independent queries run in parallel (`Promise.all`) rather than in a
-  waterfall — see the dashboard layout/pages.
-- `app/admin/loading.jsx` and `app/dashboard/loading.jsx` show a skeleton
-  instantly, so sidebar clicks respond right away and Next can prefetch
-  each route's shell.
-- `components/Tabs.jsx` mounts a panel on first open and then keeps it
-  mounted (hidden): switching back is instant and half-typed form input
-  survives.
-- The landing page's 3D robot (three.js) is code-split and loaded after
-  the page is interactive (`components/Robot3DLazy.jsx`).
-- Landing + `/register` read course registration state through
-  `getPublicCourseSettings()` (Next data cache, tag `course-settings`),
-  which saving on `/admin/registration` busts immediately. Anything that
-  decides whether someone may pay reads the live table instead.
-- Locked note days are stripped on the server, so unreleased lesson text
-  isn't shipped to the browser.
-- Class videos use `preload="none"` plus a Cloudinary poster frame, so
-  nothing downloads until Play.
+| Route | Purpose |
+| --- | --- |
+| `/` | Public landing page, course catalogue, and workspace information |
+| `/register` | Course registration and checkout; course selection can be supplied in the query string |
+| `/login` | Student sign-in |
+| `/admin/login` | Admin sign-in |
+| `/auth/callback` | Supabase OAuth callback |
+| `/terms` | Terms and policy |
+| `/offline` | Offline fallback page |
+| `/receipt/[id]` | Registration receipt |
+| `/dashboard` | Student overview |
+| `/dashboard/courses` | Student course links and videos |
+| `/dashboard/other-courses` | Other course information |
+| `/dashboard/notes` | Course notes |
+| `/dashboard/installation` | Software installation guidance |
+| `/dashboard/announcements` | Student announcements |
+| `/dashboard/receipts` | Student receipts |
+| `/dashboard/certificate` | Awarded certificate |
+| `/teacher` | Teacher overview |
+| `/teacher/students` | Teacher's batch students |
+| `/teacher/content` | Teacher's batch links and videos |
+| `/teacher/notes` | Teacher notes tools |
+| `/teacher/announcements` | Teacher announcements |
+| `/admin` | Admin overview |
+| `/admin/batches` | Batch and timer management |
+| `/admin/content` | Class links and video management |
+| `/admin/announcements` | Announcements and reports |
+| `/admin/registration` | Course registration status and prices |
+| `/admin/students` | Student and enrolment management |
+| `/admin/teachers` | Teacher accounts and assignments |
+| `/admin/notes` | Note release controls |
+| `/admin/certificates` | Certificate awards and management |
+| `/admin/payments` | Payment ledger and manual payment updates |
+| `/admin/contacts` | HR and workspace contact settings |
+| `/api/payments/verify` | Server-side Paystack verification and registration |
+| `/api/certificates/verify` | Public certificate verification |
+| `/api/cron/purge` | Protected scheduled cleanup of expired content |
 
-## Why not a secret tap-the-bot password for admin
-
-An earlier version of this idea (before this app existed) was going to
-gate `/admin` behind double-tapping a bot icon and typing a password. That
-would not have worked: any string checked in browser JavaScript is
-sitting in the shipped bundle for anyone to read via dev tools — it's not
-a real access control, just an easily-defeated inconvenience. `/admin`
-here is a normal Google sign-in instead, and the actual boundary between
-"admin" and "student" is enforced by Postgres Row Level Security
-(`supabase/schema.sql`) — a student's session cannot read or write admin
-data no matter what the frontend does, because the database itself
-refuses the query.
-
-## Security notes worth knowing
-
-- **RLS is the real boundary**, not the Next.js code. Read
-  `supabase/schema.sql` top to bottom before changing access rules.
-- **The service-role client** (`lib/supabase/admin.js`) bypasses RLS
-  entirely. It's only imported from `app/api/payments/verify/route.js`,
-  which does its own verification (Paystack, age eligibility, an actual
-  Google-authenticated session) before touching the database. Never
-  import it into a Client Component or a Server Action.
-- **Server Actions** (`app/admin/actions.js`) deliberately use the
-  regular, RLS-bound server client — running as the admin's own session —
-  rather than the service-role client, so Postgres itself is what rejects
-  a non-admin trying to call one of these, not just "the UI wouldn't
-  normally show this button."
-- **There is no password anywhere.** Google handles the credential
-  entirely; this app never sees, stores, or emails one.
-- **EmailJS is used for exactly one thing**: notifying you
-  (aboyadematthew@gmail.com) when someone completes a paid registration.
-  It plays no role in verifying anyone's identity.
-- **The Paystack public key and Supabase anon key are meant to be
-  public** — `.env.local` keeps them out of source control, but they're
-  still visible in the shipped JS bundle, which is normal for this kind
-  of key.
-
-## Stack
-
-- Next.js 14 (App Router) + Tailwind CSS
-- Supabase (Postgres, Auth with Google OAuth, Row Level Security, Realtime)
-- `@paystack/inline-js` for payment, verified server-side against
-  Paystack's API
-- `@emailjs/browser` (client, unused for now) / EmailJS REST API (server)
-  for the admin notification email only
+Some pages require a signed-in account with the appropriate role. Middleware redirects unauthenticated visitors to sign-in; page and database policies enforce role and data access.
 
 ## Project structure
 
 ```text
-.
-├── app/
-│   ├── page.jsx                    # Landing page
-│   ├── register/page.jsx           # Registration + payment flow
-│   ├── terms/page.jsx               # Terms & Policy
-│   ├── login/page.jsx               # Student login (Google)
-│   ├── auth/callback/route.js       # Google OAuth code exchange
-│   ├── dashboard/page.jsx           # Student dashboard (class link, chat)
-│   ├── admin/
-│   │   ├── login/page.jsx           # Admin login (Google)
-│   │   ├── page.jsx                 # Admin dashboard
-│   │   ├── batches/ content/ registration/   # Batch, content & registration admin
-│   │   └── actions.js               # Admin Server Actions (RLS-bound)
-│   └── api/
-│       └── payments/verify/route.js  # Server-side Paystack verification
-│                                       # + registration, all in one step
-├── components/                      # UI components (admin/, dashboard/)
-├── lib/
-│   ├── courses.js                    # Pricing, learn lists, age minimums
-│   ├── batch-timer.js                # 9-week class timer state machine
-│   ├── course-status.js              # Registration open/closed + tags + reopen date
-│   ├── supabase/session.js           # Per-request cached getUser()/getProfile()
-│   ├── supabase/                     # client / server / admin Supabase clients
-│   ├── paystack.js, emailjs-server.js
-├── supabase/schema.sql               # Full schema + RLS policies
-├── middleware.js                     # Session refresh + route protection
-└── public/images/cohort/             # Campaign images
+app/
+  admin/                 Admin portal pages and Server Actions
+  api/                   Payment, certificate, and scheduled-job endpoints
+  auth/callback/         OAuth callback
+  dashboard/             Student portal
+  teacher/               Teacher portal
+  register/              Registration page
+  page.jsx               Public landing page
+components/
+  admin/                 Admin management interfaces
+  dashboard/             Student portal components
+  teacher/               Teacher portal components
+  portal/                Shared portal layout and navigation
+  ui/                    Shared interface components
+lib/
+  supabase/              Browser, server, admin, and session clients
+  courses.js             Course catalogue and age eligibility
+  payments.js            Payment validation and summaries
+  batch-timer.js         Batch timer behavior
+  course-status.js       Registration availability behavior
+  certificates.js        Certificate content and helpers
+supabase/                 Schema, ordered updates, and migrations
+public/                   Static images, models, and installation assets
+middleware.js             Supabase session refresh and portal routing
 ```
+
+## Security and handling secrets
+
+- **Do not commit secrets.** `.env.local` is for local use and should remain ignored by Git. Keep production values in the deployment provider's protected environment settings.
+- **Do not expose service credentials.** `SUPABASE_SERVICE_ROLE_KEY`, payment and email private credentials, Cloudinary API credentials, and `CRON_SECRET` must remain server-side.
+- **Protect database access with RLS.** Supabase policies are the primary data-access boundary. Review them whenever changing tables or application permissions.
+- **Treat service-role access as privileged.** It bypasses RLS and must only be used in trusted server-side code that performs its own authorization and validation.
+- **Verify payment on the server.** A client-side success callback does not establish that a payment succeeded.
+- **Do not rely on hidden UI controls for authorization.** Every privileged operation must be protected by server-side checks and database policies.
+- **Rotate exposed credentials.** Removing a secret from a file does not remove it from Git history. Revoke the exposed credential and issue a replacement.
+
+Before pushing changes, inspect tracked files for accidental configuration:
+
+```powershell
+git status --short
+git ls-files
+```
+
+Do not print or paste the contents of `.env.local` into logs, chat, or commits.
+
+## Deployment
+
+The project includes a [`vercel.json`](vercel.json) schedule for the daily purge endpoint. To deploy:
+
+1. Import the repository into Vercel (or another compatible Next.js host).
+2. Configure all required environment variables in the host's protected environment settings. Use production provider credentials only in production.
+3. Configure the Supabase Auth site's production URL and OAuth redirect allowlist.
+4. Complete the ordered Supabase database setup and verify the RLS policies.
+5. Configure the Vercel Cron secret so scheduled cleanup requests are authorized. The endpoint returns an error if the secret is missing or invalid.
+6. Build and deploy, then test sign-in, payment verification, student and admin access, video uploads, certificate verification, and the scheduled job in the deployed environment.
+
+Cloudinary and EmailJS integrations are optional for parts of the application, but the features that depend on them require valid configuration. Installer links are optional and can be supplied with the corresponding public URL variables.
+
+## Development commands
+
+```powershell
+npm run dev
+npm run lint
+npm run build
+npm run start
+```
+
+`npm run start` serves a production build; run `npm run build` first. The project currently defines lint and build scripts but does not define a test script.
 
 ## License
 
-MIT — © 2024 Aboyade Matthew.
-
-## Uploading videos and links (latest)
-- Choose several videos at once; they upload two at a time. Each video is its own job: a bad file, a dropped connection or a save error only fails that row, with a plain-language reason and a Retry button (a video that already uploaded but could not be saved is saved again without re-uploading).
-- `.mpeg/.mpg` (and mpe, m2v, ts, flv, ogv...) are accepted; non-MP4/WebM/MOV files are stored as their `.mp4` delivery address so students can play them. Cloudinary sometimes reads .mpeg as "mp3", so `mp3` is on the signed `allowed_formats` list in `lib/cloudinary-server.js`; the browser still refuses real audio/image/text files up front.
-- Error wording lives in `describeUploadError()` in `lib/cloudinary.js`.
-- Class links: "Several at once" takes one link per line (`Label | https://…`); each line succeeds or fails alone.
+This project is distributed under the MIT License. See [`package.json`](package.json) for package metadata.

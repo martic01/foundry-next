@@ -5,6 +5,7 @@ import { UserPlus, Save, Trash2 } from 'lucide-react';
 import { adminAddTeacher, setTeacherBatches, removeTeacher } from '../../app/admin/actions';
 import { useDialog } from '../ui/DialogProvider';
 import SearchBox, { matchesQuery } from '../ui/SearchBox';
+import { CollapsibleCard } from './content-shared';
 
 function BatchChecklist({ groups, selected, onToggle, disabled }) {
   if (!groups.length) return <p className="text-xs text-inkdim">No batches exist yet — create one on the Batches page.</p>;
@@ -143,10 +144,8 @@ function AddTeacherForm({ groups }) {
   }
 
   return (
-    <form onSubmit={submit} className="card mb-8 flex flex-col gap-3 p-5">
-      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-        <UserPlus className="h-4 w-4 text-brand" /> Register a teacher
-      </p>
+    <CollapsibleCard title="Register a teacher" hint="Add a new teacher, or switch an existing student to teacher" icon={<UserPlus className="h-4 w-4" />}>
+    <form onSubmit={submit} className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" maxLength={120} className="field" disabled={isPending} required />
         <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email (their Google account)" maxLength={254} className="field" disabled={isPending} required />
@@ -177,6 +176,7 @@ function AddTeacherForm({ groups }) {
         )}
       </div>
     </form>
+    </CollapsibleCard>
   );
 }
 

@@ -5,21 +5,23 @@ import { UserPlus, Loader2 } from 'lucide-react';
 import { adminAddStudent } from '../../app/admin/actions';
 import { COURSES } from '../../lib/courses';
 import PaymentFields, { blankPayment } from './PaymentFields';
+import { CollapsibleCard } from './content-shared';
 
-export default function AddStudentForm() {
+export default function AddStudentForm({ prices = {} }) {
+  const priceOf = (k) => prices[k] ?? COURSES[k].priceNow;
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [age, setAge] = useState('');
   const [course, setCourse] = useState('foundations');
-  const [payment, setPayment] = useState(() => blankPayment(COURSES.foundations.priceNow));
+  const [payment, setPayment] = useState(() => blankPayment(priceOf('foundations')));
   const [status, setStatus] = useState({ text: '', kind: '' });
   const [isPending, startTransition] = useTransition();
 
-  const price = COURSES[course].priceNow;
+  const price = priceOf(course);
 
   // Changing the course changes the price the amounts default to.
   function handleCourseChange(next) {
-    const nextPrice = COURSES[next].priceNow;
+    const nextPrice = priceOf(next);
     setCourse(next);
     setPayment((p) => ({
       ...p,
@@ -55,8 +57,8 @@ export default function AddStudentForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card mb-6 flex flex-col gap-3 p-5">
-      <p className="text-sm font-semibold text-ink">Add a student directly</p>
+    <CollapsibleCard title="Add a student directly" hint="For cash, transfer or complimentary enrolments" icon={<UserPlus className="h-4 w-4" />}>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <p className="text-xs text-inkdim">
         Enrolls someone without going through Paystack -- for cash/offline
         payments or comps. If they&apos;ve never signed in before, this
@@ -118,5 +120,6 @@ export default function AddStudentForm() {
         </p>
       )}
     </form>
+    </CollapsibleCard>
   );
 }

@@ -5,7 +5,7 @@ import { Upload, Trash2, Loader2, Play, ChevronUp, Pencil, Check, X, RotateCcw, 
 import { uploadClassVideo, checkVideoFile, formatBytes } from '../../lib/cloudinary';
 import { addClassVideo, updateClassVideo, deleteClassVideo, discardCloudinaryUpload } from '../../app/admin/actions';
 import { useDialog } from '../ui/DialogProvider';
-import { AudienceSelect, AudienceChip, audienceOf, defaultAudienceFor, iconBtn, dangerBtn, ExpirySelect, ExpiryChip, canModify, ReportButton, ProgressBar, BusyOverlay } from './content-shared';
+import { AudienceSelect, AudienceChip, audienceOf, defaultAudienceFor, iconBtn, dangerBtn, ExpirySelect, ExpiryChip, canModify, ReportButton, ProgressBar, BusyOverlay, CollapsibleCard, ListHeading } from './content-shared';
 import SearchBox, { matchesQuery } from '../ui/SearchBox';
 import { defaultExpiry, expiryToIso, expiryFromIso } from '../../lib/expiry';
 
@@ -210,8 +210,13 @@ export default function ClassVideoManager({ videos, audienceOptions, viewer = { 
 
   return (
     <div>
-      <div className="mb-5 flex flex-col gap-2 rounded-lg border border-line bg-surfaceMuted p-4">
-        <p className="text-sm font-semibold text-ink">Upload class videos</p>
+      <CollapsibleCard
+        title="Upload class videos"
+        hint="Add one or many videos at once"
+        icon={<Upload className="h-4 w-4" />}
+        badge={working ? `${working} uploading` : counts.failed ? `${counts.failed} failed` : null}
+      >
+      <div className="flex flex-col gap-2">
         <p className="text-xs text-inkdim">Pick one or many videos (MP4, MOV, MPEG and more). They upload two at a time; if one fails, the others carry on.</p>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description for these videos (optional)" rows={2} className="field resize-none" />
         <AudienceSelect value={audience} onChange={setAudience} options={audienceOptions} />
@@ -297,9 +302,11 @@ export default function ClassVideoManager({ videos, audienceOptions, viewer = { 
             </span>
           </div>
         )}
-        {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
+      </CollapsibleCard>
+      {error && <p className="-mt-3 mb-4 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">{error}</p>}
 
+      <ListHeading count={videos.length}>Uploaded videos</ListHeading>
       {videos.length > 3 && <SearchBox value={q} onChange={setQ} placeholder="Search videos by title or description" className="mb-3" />}
       {!videos.length ? (
         <p className="text-sm text-inkdim">No class videos here yet.</p>

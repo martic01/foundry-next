@@ -6,6 +6,8 @@ import { sendServerEmail } from '../../../../lib/emailjs-server';
 import { COURSES, MIN_AGE, calculateAge, getCourse} from '../../../../lib/courses';
 import { getCourseSettings } from '../../../../lib/course-settings';
 import { getAvailability, startedBeforeClose, describeClosure } from '../../../../lib/course-status';
+import { effectivePrice } from '../../../../lib/pricing';
+import { validateCertificateName } from '../../../../lib/certificates';
 
 // The whole registration now completes in this one request: Google
 // sign-in (required before this is ever called) already proved the
@@ -23,6 +25,9 @@ export async function POST(request) {
 
   if (!reference || !course || !dob) {
     return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
+  }
+  if (course.contactOnly) {
+    return NextResponse.json({ error: 'This course is by enquiry only. Please contact us on WhatsApp or email.' }, { status: 400 });
   }
 
   // Registration state is controlled by the admin (/admin/registration),
@@ -139,7 +144,7 @@ export async function POST(request) {
   if (txn.status !== 'success') {
     return NextResponse.json({ error: 'Payment was not successful.' }, { status: 400 });
   }
-  if (txn.amount !== course.priceNow * 100 || txn.currency !== 'NGN') {
+  if (txn.amount !== effectivePrice(course, settings).now * 100 || txn.currency !== 'NGN') {
     return NextResponse.json({ error: 'Payment amount does not match this course.' }, { status: 400 });
   }
   // The payment must also have been started FOR THIS COURSE. Prices can
@@ -206,6 +211,14 @@ export async function POST(request) {
     console.error('profiles upsert error:', profileError);
     return NextResponse.json({ error: 'Payment verified, but we could not save your profile. Please contact support with this reference: ' + reference }, { status: 500 });
   }
+
+  // The name for the certificate (the register page already saved it before
+  // payment; this is the backup). Separate and best-effort on purpose: a
+  // problem here must never undo a payment that has already gone through.
+  try {
+    const v = validateCertificateName(body?.certificateName);
+    if (v.ok) await admin.from('profiles').update({ certificate_name: v.name }).eq('id', user.id);
+  } catch { /* ignore */ }
 
   const { error: regError } = await admin.from('registrations').insert({
     user_id: user.id,

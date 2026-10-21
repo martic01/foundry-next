@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Tag as TagIcon } from 'lucide-react';
+import { effectivePrice, parsePriceInput } from '../../lib/pricing';
+import { formatNaira } from '../../lib/courses';
 import { updateCourseSettings } from '../../app/admin/actions';
 import { TAGS, TAG_OPTIONS, getAvailability, describeClosure, isoToReopenDateInput } from '../../lib/course-status';
 
@@ -23,7 +25,12 @@ export function TagBadge({ tag, className = '' }) {
 
 // One course's registration controls. `seats` = { paid, batches, capacity }
 // for the usage line (informational -- the admin picks the tag).
-export default function RegistrationControl({ course, settings, seats }) {
+export default function RegistrationControl({ course, settings, seats, defaults }) {
+  const cur = effectivePrice({ priceNow: defaults.now, priceWas: defaults.was }, settings);
+  const [priceNow, setPriceNow] = useState(String(cur.now));
+  const [priceWas, setPriceWas] = useState(cur.was ? String(cur.was) : '');
+  const priceCheck = parsePriceInput(priceNow, priceWas);
+  const priceDirty = String(cur.now) !== priceNow.trim() || String(cur.was || '') !== priceWas.trim();
   const [open, setOpen] = useState(settings.registration_open);
   const [tag, setTag] = useState(settings.tag || 'none');
   const [reopenDate, setReopenDate] = useState(isoToReopenDateInput(settings.reopen_at));
@@ -40,15 +47,19 @@ export default function RegistrationControl({ course, settings, seats }) {
   });
   const saved = getAvailability(settings);
 
-  function save() {
+  function save(pricingOverride) {
+    if (!pricingOverride && priceDirty && priceCheck.error) return setStatus({ text: priceCheck.error, kind: 'error' });
     startTransition(async () => {
       const res = await updateCourseSettings(course.key, {
+        pricing: pricingOverride || (priceDirty ? { priceNow, priceWas } : undefined),
         registrationOpen: open,
         tag,
         reopenDate: closing && !furtherNotice ? reopenDate : '',
         untilFurtherNotice: closing && furtherNotice
       });
-      setStatus(res?.error ? { text: res.error, kind: 'error' } : { text: 'Saved.', kind: 'ok' });
+      if (res?.error) return setStatus({ text: res.error, kind: 'error' });
+      if (pricingOverride?.reset) { setPriceNow(String(defaults.now)); setPriceWas(defaults.was ? String(defaults.was) : ''); }
+      setStatus({ text: 'Saved.', kind: 'ok' });
     });
   }
 
@@ -113,6 +124,30 @@ export default function RegistrationControl({ course, settings, seats }) {
         </div>
       </div>
 
+      <div className="mt-5 rounded-lg border border-line p-4">
+        <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink"><TagIcon className="h-4 w-4 text-brand" /> Price</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-inkdim">Price students pay (₦)</span>
+            <input value={priceNow} onChange={(e) => setPriceNow(e.target.value)} inputMode="numeric" className="field" disabled={isPending} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-inkdim">Original price, crossed out (₦) — optional</span>
+            <input value={priceWas} onChange={(e) => setPriceWas(e.target.value)} inputMode="numeric" placeholder="empty = no discount" className="field" disabled={isPending} />
+          </label>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-inkdim">
+          <span>
+            Shown as: <span className="font-semibold text-ink">{priceCheck.error ? '—' : formatNaira(priceCheck.now)}</span>
+            {!priceCheck.error && priceCheck.was ? <> <span className="line-through">{formatNaira(priceCheck.was)}</span> (save {formatNaira(priceCheck.was - priceCheck.now)})</> : ' (no discount)'}
+          </span>
+          {priceWas.trim() && <button type="button" onClick={() => setPriceWas('')} className="underline underline-offset-2 hover:text-ink">Remove discount</button>}
+          <button type="button" onClick={() => save({ reset: true })} disabled={isPending} className="underline underline-offset-2 hover:text-ink">Reset to default prices</button>
+        </div>
+        {priceCheck.error && priceDirty && <p className="mt-2 text-xs text-red-600">{priceCheck.error}</p>}
+        <p className="mt-2 text-xs text-inkdim">The new price applies to new payments straight away: the landing page, register page and payment check all use it.</p>
+      </div>
+
       {closing && (
         <div className="mt-5 rounded-lg border border-line bg-surfaceMuted p-4">
           <p className="mb-3 text-sm font-semibold text-ink">When does registration reopen?</p>
@@ -148,7 +183,7 @@ export default function RegistrationControl({ course, settings, seats }) {
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        <button onClick={save} disabled={isPending} className="cta-btn !px-5 !py-2 text-sm">
+        <button onClick={() => save()} disabled={isPending} className="cta-btn !px-5 !py-2 text-sm">
           {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
         </button>
         {status.text && <p className={`text-sm ${status.kind === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>{status.text}</p>}

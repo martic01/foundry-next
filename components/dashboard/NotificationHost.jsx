@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Megaphone, Video, Link2, NotebookText, X, CheckCircle2, Flag } from 'lucide-react';
+import { Megaphone, Video, Link2, NotebookText, X, CheckCircle2, Flag, Award } from 'lucide-react';
 import { createClient } from '../../lib/supabase/client';
 
 // Auto-dismiss: toasts clear after ~8s (paused on hover).
@@ -14,7 +14,7 @@ import { createClient } from '../../lib/supabase/client';
 // New rows arrive over Realtime, with a 20s poll as the fallback for
 // when Realtime isn't enabled. Marking one read is a single update of
 // read_at (the only column a student is allowed to change).
-const ICONS = { video: Video, link: Link2, notes: NotebookText, announcement: Megaphone, report: Flag };
+const ICONS = { video: Video, link: Link2, notes: NotebookText, announcement: Megaphone, report: Flag, certificate: Award };
 const TOAST_MS = 8000; // toasts leave on their own; the pop-up never does
 
 // One toast with its own auto-dismiss timer. Hovering or focusing it

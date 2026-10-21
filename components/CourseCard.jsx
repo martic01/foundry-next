@@ -3,6 +3,7 @@ import { Check, ArrowRight, Clock } from 'lucide-react';
 import AutoPanImage from './AutoPanImage';
 import { formatNaira } from '../lib/courses';
 import { TAGS, formatReopenDate } from '../lib/course-status';
+import ContactButtons from './ContactButtons';
 
 const TAG_STYLES = {
   coming_soon: 'bg-ink/80 text-white',
@@ -13,7 +14,8 @@ const TAG_STYLES = {
 
 // `availability` comes from getAvailability() (lib/course-status.js),
 // computed on the server from the admin's course_settings.
-export default function CourseCard({ course, availability }) {
+export default function CourseCard({ course, availability, contacts }) {
+  const enquiry = course.contactOnly;
   const closedLabel =
     availability.tag === 'ended' ? 'Registration ended' : availability.tag === 'sold_out' ? 'All seats taken' : availability.tag === 'coming_soon' ? 'Coming soon' : 'Registration closed';
 
@@ -25,7 +27,7 @@ export default function CourseCard({ course, availability }) {
           alt={course.name}
           frameClassName="h-48 w-full border-b border-line"
         />
-        {availability.tag !== 'none' && (
+        {!enquiry && availability.tag !== 'none' && (
           <span className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${TAG_STYLES[availability.tag]}`}>
             {availability.tag === 'coming_soon' && <Clock className="h-3 w-3" />} {TAGS[availability.tag].label}
           </span>
@@ -42,9 +44,15 @@ export default function CourseCard({ course, availability }) {
             </li>
           ))}
         </ul>
+        {enquiry ? (
+          <div className="mt-auto pt-2">
+            <p className="mb-3 text-xs text-inkdim">Training and full HR services — contact us for details and pricing.</p>
+            <ContactButtons whatsapp={contacts?.whatsapp} email={contacts?.email} message="Hello, I would like to enquire about your HR training and services." subject="HR enquiry" full />
+          </div>
+        ) : (<>
         <div className="mt-auto flex items-baseline gap-2 pt-2">
           <span className="font-display text-lg font-semibold text-ink">{formatNaira(course.priceNow)}</span>
-          <span className="text-sm text-inkdim line-through">{formatNaira(course.priceWas)}+</span>
+          {course.priceWas ? <span className="text-sm text-inkdim line-through">{formatNaira(course.priceWas)}+</span> : null}
         </div>
         {!availability.open ? (
           <div>
@@ -60,6 +68,7 @@ export default function CourseCard({ course, availability }) {
             Register now <ArrowRight className="h-4 w-4" />
           </Link>
         )}
+        </>)}
       </div>
     </div>
   );

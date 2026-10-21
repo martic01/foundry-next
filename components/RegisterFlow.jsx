@@ -9,16 +9,41 @@ import { createClient } from '../lib/supabase/client';
 import { COURSES, getCourse, MIN_AGE, isAgeEligible, formatNaira } from '../lib/courses';
 import { LAPTOP_SPECS } from '../lib/laptop-specs';
 import { getAvailability, describeClosure } from '../lib/course-status';
-import { checkCourseOpenAction } from '../app/actions';
+import { checkCourseOpenAction, saveCertificateNameAction } from '../app/actions';
+import { validateCertificateName } from '../lib/certificates';
+import { withPrice } from '../lib/pricing';
+import ContactButtons from './ContactButtons';
 
 const PAYSTACK_PUBLIC_KEY = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
 
-export default function RegisterFlow({ settingsByCourse }) {
+export default function RegisterFlow({ settingsByCourse, hrContacts }) {
   const params = useSearchParams();
-  const course = getCourse(params.get('course')) || COURSES.foundations;
+  const baseCourse = getCourse(params.get('course')) || COURSES.foundations;
+  const course = withPrice(baseCourse, settingsByCourse[baseCourse.key]);
   const [done, setDone] = useState(false);
 
   const availability = getAvailability(settingsByCourse[course.key]);
+
+  // Enquiry-only course (HR): no checkout, just ways to get in touch.
+  if (course.contactOnly) {
+    return (
+      <main className="mx-auto max-w-2xl px-6 py-12">
+        <div className="card p-8">
+          <p className="eyebrow mb-2">Enquire</p>
+          <h1 className="mb-2 font-display text-2xl font-extrabold text-ink">{course.name}</h1>
+          <p className="mb-4 text-brand-dark">{course.tagline}</p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-inkdim">What we offer</p>
+          <ul className="mb-6 space-y-2">
+            {(course.services || course.learn).map((item) => (
+              <li key={item} className="flex items-start gap-2 text-sm text-ink"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand" strokeWidth={2.25} />{item}</li>
+            ))}
+          </ul>
+          <p className="mb-3 text-sm text-inkdim">There is no online payment for HR. Message us and we will talk through what you need and the cost.</p>
+          <ContactButtons whatsapp={hrContacts?.whatsapp} email={hrContacts?.email} message="Hello, I would like to enquire about your HR training and services." subject="HR enquiry" />
+        </div>
+      </main>
+    );
+  }
 
   if (!availability.open) {
     const heading = availability.tag === 'coming_soon' ? 'Coming soon' : availability.tag === 'ended' ? 'Registration ended' : availability.tag === 'sold_out' ? 'All seats taken' : 'Registration closed';
@@ -53,6 +78,8 @@ function DetailsStep({ course, onDone }) {
   const [authStatus, setAuthStatus] = useState({ text: '', kind: '' });
 
   const [dob, setDob] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [nameTouched, setNameTouched] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [specsAgreed, setSpecsAgreed] = useState(false);
   const [paying, setPaying] = useState(false);
@@ -69,9 +96,15 @@ function DetailsStep({ course, onDone }) {
       setAuthStatus({ text: 'Google sign-in didn\u2019t complete. Please try again.', kind: 'error' });
     }
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data?.user || null);
+    supabase.auth.getUser().then(async ({ data }) => {
+      const u = data?.user || null;
+      setUser(u);
       setCheckingSession(false);
+      if (u) {
+        // Prefill: the name they gave before, else the one on their Google account.
+        const { data: prof } = await supabase.from('profiles').select('certificate_name').eq('id', u.id).maybeSingle();
+        setFullName((prev) => prev || prof?.certificate_name || u.user_metadata?.full_name || u.user_metadata?.name || '');
+      }
     });
   }, [searchParams]);
 
@@ -117,7 +150,8 @@ function DetailsStep({ course, onDone }) {
   const dobEntered = dob !== '';
   const ageEligible = dobEntered && isAgeEligible(dob);
   const ageIneligible = dobEntered && !ageEligible;
-  const canPay = !!user && ageEligible && agreed && specsAgreed && !paying && !alreadyPaid;
+  const nameCheck = validateCertificateName(fullName);
+  const canPay = !!user && !!nameCheck.ok && ageEligible && agreed && specsAgreed && !paying && !alreadyPaid;
 
   async function handlePay() {
     if (!canPay) return;
@@ -127,6 +161,15 @@ function DetailsStep({ course, onDone }) {
     }
     setPaying(true);
 
+    // The name for the certificate is saved BEFORE any money moves.
+    const saved = await saveCertificateNameAction(fullName);
+    if (saved?.error) {
+      setPaying(false);
+      setNameTouched(true);
+      setStatus({ text: saved.error, kind: 'error' });
+      return;
+    }
+
     // Fresh server-side check -- the admin may have closed registration
     // since this page loaded.
     const openCheck = await checkCourseOpenAction(course.key);
@@ -135,6 +178,7 @@ function DetailsStep({ course, onDone }) {
       setStatus({ text: openCheck.message || 'Registration is closed for this course.', kind: 'error' });
       return;
     }
+    const livePrice = openCheck.priceNow || course.priceNow; // the price right now, from the server
     setStatus({ text: 'Opening secure payment window\u2026', kind: 'info' });
 
     // Loaded dynamically, only here (inside a click handler, so only
@@ -158,7 +202,7 @@ function DetailsStep({ course, onDone }) {
     popup.newTransaction({
       key: PAYSTACK_PUBLIC_KEY,
       email: user.email,
-      amount: course.priceNow * 100,
+      amount: livePrice * 100,
       currency: 'NGN',
       reference,
       metadata: { course: course.key, course_name: course.name },
@@ -172,7 +216,8 @@ function DetailsStep({ course, onDone }) {
               reference: transaction.reference || reference,
               courseKey: course.key,
               dob,
-              specsAgreed
+              specsAgreed,
+              certificateName: fullName
             })
           });
           const data = await res.json();
@@ -215,7 +260,7 @@ function DetailsStep({ course, onDone }) {
 
         <div className="mb-6 flex items-baseline gap-3 rounded-lg bg-surfaceMuted p-4">
           <span className="font-display text-2xl font-semibold text-ink">{formatNaira(course.priceNow)}</span>
-          <span className="text-inkdim line-through">{formatNaira(course.priceWas)}+</span>
+          {course.priceWas ? <span className="text-inkdim line-through">{formatNaira(course.priceWas)}+</span> : null}
         </div>
 
         {/* Step: sign in -- Google handles both the credential and the
@@ -253,10 +298,28 @@ function DetailsStep({ course, onDone }) {
           )}
         </div>
 
+        {/* Step: the name printed on the certificate. Saved before payment. */}
+        <div className="mb-5 rounded-lg border border-line p-4">
+          <p className="mb-1 text-sm font-semibold text-ink">2. Your full name</p>
+          <p className="mb-3 text-xs text-inkdim">This is the name that will be printed on your certificate, so enter it exactly as you want it to appear (first and last name).</p>
+          <input
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            onBlur={() => setNameTouched(true)}
+            placeholder="e.g. Ada Chinwe Obi"
+            autoComplete="name"
+            maxLength={100}
+            className="field"
+            aria-label="Full name for your certificate"
+          />
+          {nameTouched && nameCheck.error && <p className="mt-2 text-xs text-red-600">{nameCheck.error}</p>}
+        </div>
+
         {/* Step: date of birth -- gates course eligibility at a single,
             blanket minimum age across both stages. */}
         <div className="mb-5 rounded-lg border border-line p-4">
-          <p className="mb-3 text-sm font-semibold text-ink">2. Confirm your date of birth</p>
+          <p className="mb-3 text-sm font-semibold text-ink">3. Confirm your date of birth</p>
           <input
             type="date"
             value={dob}
@@ -278,7 +341,7 @@ function DetailsStep({ course, onDone }) {
             /api/payments/verify) as laptop_specs_agreed. */}
         <div className="mb-5 rounded-lg border border-line p-4">
           <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
-            <Laptop className="h-4 w-4" /> 3. Confirm your laptop meets these specs
+            <Laptop className="h-4 w-4" /> 4. Confirm your laptop meets these specs
           </p>
           <ul className="mb-3 space-y-1.5">
             {LAPTOP_SPECS.map((spec) => (

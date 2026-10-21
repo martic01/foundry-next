@@ -5,6 +5,9 @@ import Robot3D from '../components/Robot3DLazy';
 import { CategoryGrid, ProcessSteps, SplitCta, Faq } from '../components/MarketplaceSections';
 import { COURSES } from '../lib/courses';
 import { getPublicCourseSettings } from '../lib/course-settings';
+import { getPublicSiteContacts } from '../lib/site-contacts';
+import { withPrice } from '../lib/pricing';
+import WorkspaceSection from '../components/WorkspaceSection';
 import { getAvailability } from '../lib/course-status';
 
 export default async function FoundryHome() {
@@ -12,7 +15,7 @@ export default async function FoundryHome() {
   // cache that the admin's save busts immediately (see
   // getPublicCourseSettings). A scheduled reopen date still takes effect
   // on time because getAvailability() compares it to "now" per request.
-  const settings = await getPublicCourseSettings();
+  const [settings, contacts] = await Promise.all([getPublicCourseSettings(), getPublicSiteContacts()]);
   const availability = Object.fromEntries(Object.keys(COURSES).map((k) => [k, getAvailability(settings[k])]));
   const anyOpen = Object.values(availability).some((a) => a.open);
 
@@ -100,10 +103,12 @@ export default async function FoundryHome() {
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
           {Object.values(COURSES).map((c) => (
-            <CourseCard key={c.key} course={c} availability={availability[c.key]} />
+            <CourseCard key={c.key} course={withPrice(c, settings[c.key])} availability={availability[c.key]} contacts={contacts.hr} />
           ))}
         </div>
       </section>
+
+      <WorkspaceSection contacts={contacts.workspace} />
 
       <CategoryGrid />
       <ProcessSteps />

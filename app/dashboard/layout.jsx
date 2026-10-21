@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { LayoutDashboard, BookOpen, Receipt, Megaphone, Wrench, NotebookText, Compass } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Receipt, Megaphone, Wrench, NotebookText, Compass, Award, Lock } from 'lucide-react';
 import { createClient } from '../../lib/supabase/server';
 import { getUser, getProfile } from '../../lib/supabase/session';
 import { signOutAction } from '../actions';
@@ -20,13 +20,14 @@ export default async function DashboardLayout({ children }) {
   // so they run together instead of one after the other. (A blocked or
   // admin account wastes the banner query -- that's rare and cheap.)
   const supabase = await createClient();
-  const [profile, { data: bannerRegs }] = await Promise.all([
+  const [profile, { data: bannerRegs }, { count: certCount }] = await Promise.all([
     getProfile(user.id),
     supabase
       .from('registrations')
       .select('course, batches(id, label, start_date, class_status, timer_total_seconds, timer_elapsed_seconds, timer_started_at)')
       .eq('user_id', user.id)
-      .eq('status', 'paid')
+      .eq('status', 'paid'),
+    supabase.from('certificates').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
   ]);
 
   // An admin account landing here (e.g. a bookmark, or the nav briefly
@@ -70,6 +71,7 @@ export default async function DashboardLayout({ children }) {
     { href: '/dashboard/other-courses', label: 'Other courses', icon: <Compass className="h-4 w-4" /> },
     { href: '/dashboard/installation', label: 'Installation', icon: <Wrench className="h-4 w-4" />, badge: installationPending },
     { href: '/dashboard/notes', label: 'Notes', icon: <NotebookText className="h-4 w-4" /> },
+    { href: '/dashboard/certificate', label: 'Certificate', icon: certCount ? <Award className="h-4 w-4" /> : <Lock className="h-4 w-4" /> },
     { href: '/dashboard/receipts', label: 'Receipts', icon: <Receipt className="h-4 w-4" /> },
     { href: '/dashboard/announcements', label: 'Announcements', icon: <Megaphone className="h-4 w-4" /> }
   ];

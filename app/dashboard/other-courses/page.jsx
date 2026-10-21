@@ -4,6 +4,8 @@ import { COURSES } from '../../../lib/courses';
 import { getCourseSettings } from '../../../lib/course-settings';
 import { getAvailability } from '../../../lib/course-status';
 import CourseCard from '../../../components/CourseCard';
+import { getSiteContacts } from '../../../lib/site-contacts';
+import { withPrice } from '../../../lib/pricing';
 
 export const metadata = { title: 'Other courses — The Foundry' };
 
@@ -15,9 +17,10 @@ export default async function OtherCoursesPage() {
   const supabase = await createClient();
   const user = await getUser();
 
-  const [{ data: registrations }, settings] = await Promise.all([
+  const [{ data: registrations }, settings, contacts] = await Promise.all([
     supabase.from('registrations').select('course').eq('user_id', user.id).eq('status', 'paid'),
-    getCourseSettings(supabase)
+    getCourseSettings(supabase),
+    getSiteContacts(supabase)
   ]);
 
   const enrolled = new Set((registrations || []).map((r) => r.course));
@@ -34,7 +37,7 @@ export default async function OtherCoursesPage() {
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {others.map((c) => (
-            <CourseCard key={c.key} course={c} availability={getAvailability(settings[c.key])} />
+            <CourseCard key={c.key} course={withPrice(c, settings[c.key])} availability={getAvailability(settings[c.key])} contacts={contacts.hr} />
           ))}
         </div>
       )}
