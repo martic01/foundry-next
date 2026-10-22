@@ -1,6 +1,7 @@
 import { MapPin, MessageCircle, Mail, Building2, Users, Mailbox } from 'lucide-react';
 import RemoteImage from './RemoteImage';
 import { whatsappLink } from '../lib/site-contacts';
+import WorkspaceTour from './WorkspaceTour';
 
 // Photos are free-to-use Unsplash images, loaded from their CDN.
 const U = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=900&q=70`;
@@ -25,7 +26,7 @@ const SPACES = [
   {
     icon: Mailbox,
     title: 'Virtual office',
-    text: 'A real Lagos business address for your company, with a professional setting you can point clients to.',
+    text: 'A furnished private office of your own, with a real Lagos business address for your company and a professional setting you can point clients to.',
     img: U('1758448500688-3ababa93fd67'),
     alt: 'A modern office reception desk',
     ask: 'a virtual office'
@@ -33,6 +34,20 @@ const SPACES = [
 ];
 
 export default function WorkspaceSection({ contacts }) {
+  const msg = (ask) => whatsappLink(contacts.whatsapp, `Hello, I would like to make an enquiry about ${ask} at ${contacts.address}.`);
+  const links = {
+    whatsapp: whatsappLink(contacts.whatsapp),
+    ask: { cowork: msg(SPACES[0].ask), meeting: msg(SPACES[1].ask), virtual: msg(SPACES[2].ask) }
+  };
+  return (
+    <WorkspaceTour contacts={contacts} links={links}>
+      <StaticWorkspace contacts={contacts} />
+    </WorkspaceTour>
+  );
+}
+
+// The plain version: shown while loading, with reduced motion, or without canvas.
+function StaticWorkspace({ contacts }) {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(contacts.address)}`;
   return (
     <section id="workspace" className="bg-surfaceMuted py-16">

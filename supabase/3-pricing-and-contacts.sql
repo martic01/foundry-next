@@ -17,7 +17,7 @@ alter table course_settings add constraint course_settings_price_ok check (
 
 -- 2. Contact details for HR and the workspace (Admin -> HR & workspace).
 create table if not exists site_settings (
-  key text primary key check (key in ('hr', 'workspace')),
+  key text primary key check (key in ('hr', 'workspace', 'event')),
   value jsonb not null default '{}'::jsonb check (pg_column_size(value) < 2000),
   updated_at timestamptz not null default now(),
   updated_by uuid references profiles(id) on delete set null
@@ -35,7 +35,8 @@ create policy "site_settings_admin_update" on site_settings for update using (is
 
 insert into site_settings (key, value) values
   ('hr', '{"whatsapp":"08027245572","email":"olufunmione@gmail.com"}'),
-  ('workspace', '{"whatsapp":"08027245572","email":"olufunmione@gmail.com","address":"Yaya Abatan Road, Ogba, Lagos"}')
+  ('workspace', '{"whatsapp":"08027245572","email":"olufunmione@gmail.com","address":"Yaya Abatan Road, Ogba, Lagos"}'),
+  ('event', '{"whatsapp":"08027245572","email":"olufunmione@gmail.com","address":"Yaya Abatan Road, Ogba, Lagos"}')
 on conflict (key) do nothing;
 
 -- 3. Repair: make sure alerts of every kind are allowed (an earlier version of the

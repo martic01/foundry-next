@@ -1391,9 +1391,9 @@ export async function updateSiteContact(key, values) {
   if (!isValidPhone(whatsapp)) return { error: 'Enter a valid WhatsApp number, for example 08027245572.' };
   if (!isValidEmail(email)) return { error: 'Enter a valid email address.' };
   const value = { whatsapp: whatsapp.slice(0, 30), email };
-  if (key === 'workspace') {
+  if (key === 'workspace' || key === 'event') {
     const address = String(values?.address || '').trim();
-    if (address.length < 5 || address.length > 200) return { error: 'Enter the workspace address (5 to 200 characters).' };
+    if (address.length < 5 || address.length > 200) return { error: `Enter the ${key === 'event' ? 'event center' : 'workspace'} address (5 to 200 characters).` };
     value.address = address;
   }
   const supabase = await createClient();

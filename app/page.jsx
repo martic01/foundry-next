@@ -8,6 +8,7 @@ import { getPublicCourseSettings } from '../lib/course-settings';
 import { getPublicSiteContacts } from '../lib/site-contacts';
 import { withPrice } from '../lib/pricing';
 import WorkspaceSection from '../components/WorkspaceSection';
+import EventSection from '../components/EventSection';
 import { getAvailability } from '../lib/course-status';
 
 export default async function FoundryHome() {
@@ -109,6 +110,7 @@ export default async function FoundryHome() {
       </section>
 
       <WorkspaceSection contacts={contacts.workspace} />
+      <EventSection contacts={contacts.event} />
 
       <CategoryGrid />
       <ProcessSteps />

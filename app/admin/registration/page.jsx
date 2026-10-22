@@ -21,7 +21,7 @@ export default async function RegistrationPage() {
         Open or close registration and payment per course, set its price and discount, and tag it on the landing page. Closing always needs a
         reopen date or “until further notice”.
       </p>
-      <p className="mb-6 rounded-lg border border-line bg-surfaceMuted p-3 text-xs text-inkdim">HR is by enquiry (no online payment), so it isn&apos;t listed here. Edit its WhatsApp number and email on the <a href="/admin/contacts" className="font-medium text-brand underline">HR &amp; workspace</a> page.</p>
+      <p className="mb-6 rounded-lg border border-line bg-surfaceMuted p-3 text-xs text-inkdim">HR is by enquiry (no online payment), so it isn&apos;t listed here. Edit its WhatsApp number and email on the <a href="/admin/contacts" className="font-medium text-brand underline">HR, workspace &amp; events</a> page.</p>
       <div className="flex flex-col gap-6">
         {Object.values(COURSES).filter((c) => !c.contactOnly).map((course) => (
           <RegistrationControl
