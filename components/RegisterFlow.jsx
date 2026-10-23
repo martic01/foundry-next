@@ -9,17 +9,18 @@ import { createClient } from '../lib/supabase/client';
 import { COURSES, getCourse, MIN_AGE, isAgeEligible, formatNaira } from '../lib/courses';
 import { LAPTOP_SPECS } from '../lib/laptop-specs';
 import { getAvailability, describeClosure } from '../lib/course-status';
-import { checkCourseOpenAction, saveCertificateNameAction } from '../app/actions';
+import { saveCertificateNameAction } from '../app/actions';
 import { validateCertificateName } from '../lib/certificates';
 import { withPrice } from '../lib/pricing';
 import ContactButtons from './ContactButtons';
 
-const PAYSTACK_PUBLIC_KEY = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
-
 export default function RegisterFlow({ settingsByCourse, hrContacts }) {
   const params = useSearchParams();
   const baseCourse = getCourse(params.get('course')) || COURSES.foundations;
+  // If the admin changes the price while this page is open, the server tells us on Pay and we show the new one.
+  const [priceOverride, setPriceOverride] = useState(null);
   const course = withPrice(baseCourse, settingsByCourse[baseCourse.key]);
+  if (priceOverride !== null) course.priceNow = priceOverride;
   const [done, setDone] = useState(false);
 
   const availability = getAvailability(settingsByCourse[course.key]);
@@ -65,12 +66,12 @@ export default function RegisterFlow({ settingsByCourse, hrContacts }) {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
-      {done ? <DoneStep /> : <DetailsStep course={course} onDone={() => setDone(true)} />}
+      {done ? <DoneStep /> : <DetailsStep course={course} onDone={() => setDone(true)} onPriceChange={setPriceOverride} />}
     </main>
   );
 }
 
-function DetailsStep({ course, onDone }) {
+function DetailsStep({ course, onDone, onPriceChange }) {
   const searchParams = useSearchParams();
   const [user, setUser] = useState(null); // Supabase user once signed in with Google
   const [checkingSession, setCheckingSession] = useState(true);
@@ -84,6 +85,8 @@ function DetailsStep({ course, onDone }) {
   const [specsAgreed, setSpecsAgreed] = useState(false);
   const [paying, setPaying] = useState(false);
   const [status, setStatus] = useState({ text: '', kind: '' });
+  // The centred progress box. null = hidden (also while Paystack's own window is up, or when a message needs the person's attention).
+  const [phase, setPhase] = useState(null); // null | 'preparing' | 'opening' | 'confirming'
   const [alreadyPaid, setAlreadyPaid] = useState(false);
   const [otherCourses, setOtherCourses] = useState([]); // courses this same account already holds
 
@@ -155,10 +158,6 @@ function DetailsStep({ course, onDone }) {
 
   async function handlePay() {
     if (!canPay) return;
-    if (!PAYSTACK_PUBLIC_KEY) {
-      setStatus({ text: 'Payment isn\u2019t configured yet (missing Paystack key). Please check back soon.', kind: 'error' });
-      return;
-    }
     setPaying(true);
 
     // The name for the certificate is saved BEFORE any money moves.
@@ -170,69 +169,77 @@ function DetailsStep({ course, onDone }) {
       return;
     }
 
-    // Fresh server-side check -- the admin may have closed registration
-    // since this page loaded.
-    const openCheck = await checkCourseOpenAction(course.key);
-    if (!openCheck.open) {
+    // The SERVER picks the amount (the admin's live price), records it, and
+    // starts the Paystack transaction. We only receive an access code, so
+    // nothing in the browser can change what is charged.
+    setStatus({ text: '', kind: '' });
+    setPhase('preparing');
+    let init;
+    try {
+      const res = await fetch('/api/payments/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseKey: course.key, dob, specsAgreed, expectedPrice: course.priceNow })
+      });
+      init = await res.json();
+      if (res.status === 409 && init.error === 'price_changed') {
+        onPriceChange(init.priceNow);
+        setPhase(null);
+        setPaying(false);
+        setStatus({ text: 'The price was just updated to ' + formatNaira(init.priceNow) + '. Please check it and tap Pay again.', kind: 'info' });
+        return;
+      }
+      if (!res.ok) throw new Error(init.error || 'Could not start the payment.');
+    } catch (err) {
+      setPhase(null);
       setPaying(false);
-      setStatus({ text: openCheck.message || 'Registration is closed for this course.', kind: 'error' });
+      setStatus({ text: err.message, kind: 'error' });
       return;
     }
-    const livePrice = openCheck.priceNow || course.priceNow; // the price right now, from the server
-    setStatus({ text: 'Opening secure payment window\u2026', kind: 'info' });
+    const reference = init.reference;
+    setPhase('opening');
+    // Safety net: never leave our box over Paystack's window if it forgets to tell us it loaded.
+    const hideTimer = setTimeout(() => setPhase((p) => (p === 'opening' ? null : p)), 3500);
 
     // Loaded dynamically, only here (inside a click handler, so only
-    // ever in the browser) instead of a top-level static import. That
-    // package touches `window` as soon as it's imported, which crashes
-    // Next.js's server-side prerender of this page if it's imported
-    // statically -- Node has no `window` at build time.
+    // ever in the browser): that package touches `window` as soon as it is
+    // imported, which would crash Next.js's server-side prerender.
     const { default: PaystackPop } = await import('@paystack/inline-js');
-
-    // A random component, not just a timestamp -- Date.now() alone is
-    // guessable (anyone who roughly knows when someone else checked out
-    // could brute-force the exact millisecond), and the reference itself
-    // used to be the only thing standing between "this reference is
-    // real" and "this reference belongs to the person submitting it".
-    // The server now also cross-checks Paystack's own recorded email
-    // against the signed-in user (see app/api/payments/verify), so this
-    // is defense in depth on top of that, not the only protection.
-    const randomPart = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
-    const reference = 'FOUNDRY_' + course.key.toUpperCase() + '_' + Date.now() + '_' + randomPart;
     const popup = new PaystackPop();
-    popup.newTransaction({
-      key: PAYSTACK_PUBLIC_KEY,
-      email: user.email,
-      amount: livePrice * 100,
-      currency: 'NGN',
-      reference,
-      metadata: { course: course.key, course_name: course.name },
+    popup.resumeTransaction(init.accessCode, {
+      onLoad: () => { clearTimeout(hideTimer); setPhase((p) => (p === 'opening' ? null : p)); },
       onSuccess: async (transaction) => {
-        setStatus({ text: 'Confirming your payment and setting up your seat\u2026', kind: 'info' });
+        clearTimeout(hideTimer);
+        setStatus({ text: '', kind: '' });
+        setPhase('confirming');
         try {
           const res = await fetch('/api/payments/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               reference: transaction.reference || reference,
-              courseKey: course.key,
-              dob,
-              specsAgreed,
               certificateName: fullName
             })
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Could not verify your payment.');
+          setPhase(null);
           onDone();
         } catch (err) {
+          setPhase(null);
           setPaying(false);
           setStatus({ text: err.message, kind: 'error' });
         }
       },
       onCancel: () => {
+        clearTimeout(hideTimer);
+        setPhase(null);
         setPaying(false);
         setStatus({ text: 'Payment window closed \u2014 you can try again whenever you\u2019re ready.', kind: 'info' });
       },
       onError: (error) => {
+        clearTimeout(hideTimer);
+        setPhase(null);
         setPaying(false);
         setStatus({ text: 'Payment error: ' + (error?.message || 'please try again.'), kind: 'error' });
       }
@@ -393,9 +400,24 @@ function DetailsStep({ course, onDone }) {
           <ShieldCheck className="h-3.5 w-3.5" /> Secured by Paystack
         </p>
         {status.text && (
-          <p className={`mt-3 text-sm ${status.kind === 'error' ? 'text-red-600' : status.kind === 'success' ? 'text-emerald-600' : 'text-inkdim'}`}>
+          <p className={`mt-3 text-sm ${status.kind === 'error' ? 'text-red-600' : status.kind === 'success' ? 'text-emerald-600' : 'text-inkdim'}`} role="status" aria-live="polite">
             {status.text}
           </p>
+        )}
+        {phase && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-6 backdrop-blur-sm" role="alertdialog" aria-modal="true" aria-live="assertive" aria-label="Payment progress">
+            <div className="card flex w-full max-w-sm flex-col items-center gap-4 p-8 text-center shadow-2xl">
+              <Loader2 className="h-10 w-10 animate-spin text-brand" />
+              <div>
+                <p className="font-display text-base font-extrabold text-ink">
+                  {phase === 'preparing' ? 'Preparing your secure payment' : phase === 'opening' ? 'Opening the payment window' : 'Confirming your payment'}
+                </p>
+                <p className="mt-1 text-sm text-inkdim">
+                  {phase === 'confirming' ? 'Setting up your seat. Please keep this page open, it only takes a moment.' : 'One moment, please.'}
+                </p>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </section>

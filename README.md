@@ -432,3 +432,12 @@ Both sections are scroll-driven 3D scenes drawn on a plain 2D `<canvas>` (no Web
 - **Crawling:** `app/sitemap.js` (/sitemap.xml) lists only the public pages; `app/robots.js` (/robots.txt) blocks admin, dashboard, teacher, API, auth, receipts and the offline page; those pages also carry `noindex`.
 - **Installable app:** `app/manifest.js` provides the web-app manifest and theme colour.
 - **Set these in your hosting env:** `NEXT_PUBLIC_SITE_URL` (your real domain), and optionally `GOOGLE_SITE_VERIFICATION` / `BING_SITE_VERIFICATION`. Then submit `https://YOUR-DOMAIN/sitemap.xml` in Google Search Console.
+
+## Paystack payments (server-started)
+
+1. Student taps Pay: `/api/payments/initialize` reads the admin's **live** price, saves a row in `payment_intents`, and starts the transaction with Paystack. The browser only gets an access code, so it cannot change the amount. If the admin changed the price after the page loaded, the student sees the new price first.
+2. The popup opens, then `/api/payments/verify` confirms with Paystack and creates the seat.
+3. **Webhook:** Paystack also calls `/api/payments/webhook` (signed), so a student who closes the tab after paying still gets their seat.
+4. Both steps run `lib/finalize-payment.js`, which checks the money against the saved payment, not today's price. Anything that does not match is marked `needs_review` in `payment_intents` (see `supabase/5-payment-intents.sql` for the query).
+
+Setup: run `supabase/5-payment-intents.sql`; set `PAYSTACK_SECRET_KEY` (`sk_test_` first, `sk_live_` to go live); in the Paystack dashboard (Settings > API Keys & Webhooks) set the webhook URL to `https://YOUR-DOMAIN/api/payments/webhook`.

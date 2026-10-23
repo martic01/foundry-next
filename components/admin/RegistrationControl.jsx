@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, Loader2, Tag as TagIcon } from 'lucide-react';
+import { Check, Loader2, Tag as TagIcon, Undo2, ArrowRight } from 'lucide-react';
 import { effectivePrice, parsePriceInput } from '../../lib/pricing';
 import { formatNaira } from '../../lib/courses';
 import { updateCourseSettings } from '../../app/admin/actions';
@@ -30,15 +30,36 @@ export default function RegistrationControl({ course, settings, seats, defaults 
   const [priceNow, setPriceNow] = useState(String(cur.now));
   const [priceWas, setPriceWas] = useState(cur.was ? String(cur.was) : '');
   const priceCheck = parsePriceInput(priceNow, priceWas);
-  const priceDirty = String(cur.now) !== priceNow.trim() || String(cur.was || '') !== priceWas.trim();
   const [open, setOpen] = useState(settings.registration_open);
   const [tag, setTag] = useState(settings.tag || 'none');
   const [reopenDate, setReopenDate] = useState(isoToReopenDateInput(settings.reopen_at));
   const [furtherNotice, setFurtherNotice] = useState(!settings.reopen_at);
-  const [status, setStatus] = useState({ text: '', kind: '' });
   const [isPending, startTransition] = useTransition();
 
   const closing = !open || TAGS[tag].closes;
+
+  // What is stored right now vs what is on screen: drives the "unsaved / saved" indicator.
+  const snap = (v) => ({
+    open: v.open, tag: v.tag, priceNow: String(v.priceNow).trim(), priceWas: String(v.priceWas || '').trim(),
+    reopen: v.closing ? (v.furtherNotice ? 'further notice' : v.reopenDate || '') : ''
+  });
+  const current = snap({ open, tag, priceNow, priceWas, closing, furtherNotice, reopenDate });
+  const [base, setBase] = useState(() => snap({ open: settings.registration_open, tag: settings.tag || 'none', priceNow: cur.now, priceWas: cur.was, closing: !settings.registration_open || TAGS[settings.tag || 'none'].closes, furtherNotice: !settings.reopen_at, reopenDate: isoToReopenDateInput(settings.reopen_at) }));
+  const [savedAt, setSavedAt] = useState(null);
+  const [error, setError] = useState({ text: '', key: '' });
+  const key = JSON.stringify(current);
+  const priceDirty = current.priceNow !== base.priceNow || current.priceWas !== base.priceWas;
+  const clock = (d) => d.toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit' });
+  const tagName = (t) => (t === 'none' ? 'No tag' : TAGS[t].label);
+  const money = (v) => (v ? formatNaira(Number(v)) : 'none');
+  const changes = [];
+  if (current.open !== base.open) changes.push(['Registration', base.open ? 'Open' : 'Closed', current.open ? 'Open' : 'Closed']);
+  if (current.tag !== base.tag) changes.push(['Status tag', tagName(base.tag), tagName(current.tag)]);
+  if (current.priceNow !== base.priceNow) changes.push(['Price', money(base.priceNow), money(current.priceNow)]);
+  if (current.priceWas !== base.priceWas) changes.push(['Crossed-out price', money(base.priceWas), money(current.priceWas)]);
+  if (current.reopen !== base.reopen) changes.push(['Reopens', base.reopen || 'not set', current.reopen || 'not set']);
+  const dirty = changes.length > 0;
+  const shownError = error.key === key ? error.text : '';
   // What students would see if this were saved right now.
   const preview = getAvailability({
     registration_open: open,
@@ -48,7 +69,7 @@ export default function RegistrationControl({ course, settings, seats, defaults 
   const saved = getAvailability(settings);
 
   function save(pricingOverride) {
-    if (!pricingOverride && priceDirty && priceCheck.error) return setStatus({ text: priceCheck.error, kind: 'error' });
+    if (!pricingOverride && priceDirty && priceCheck.error) return setError({ text: priceCheck.error, key });
     startTransition(async () => {
       const res = await updateCourseSettings(course.key, {
         pricing: pricingOverride || (priceDirty ? { priceNow, priceWas } : undefined),
@@ -57,10 +78,26 @@ export default function RegistrationControl({ course, settings, seats, defaults 
         reopenDate: closing && !furtherNotice ? reopenDate : '',
         untilFurtherNotice: closing && furtherNotice
       });
-      if (res?.error) return setStatus({ text: res.error, kind: 'error' });
-      if (pricingOverride?.reset) { setPriceNow(String(defaults.now)); setPriceWas(defaults.was ? String(defaults.was) : ''); }
-      setStatus({ text: 'Saved.', kind: 'ok' });
+      if (res?.error) return setError({ text: res.error, key });
+      let next = current;
+      if (pricingOverride?.reset) {
+        setPriceNow(String(defaults.now));
+        setPriceWas(defaults.was ? String(defaults.was) : '');
+        next = { ...current, priceNow: String(defaults.now), priceWas: defaults.was ? String(defaults.was) : '' };
+      }
+      setBase(next);
+      setError({ text: '', key: '' });
+      setSavedAt(new Date());
     });
+  }
+
+  function undo() {
+    setOpen(base.open);
+    setTag(base.tag);
+    setPriceNow(base.priceNow);
+    setPriceWas(base.priceWas);
+    setFurtherNotice(base.reopen === 'further notice' || !base.reopen);
+    setReopenDate(base.reopen && base.reopen !== 'further notice' ? base.reopen : '');
   }
 
   // Earliest pickable day is TOMORROW (Lagos): a reopen date is stored as
@@ -182,11 +219,36 @@ export default function RegistrationControl({ course, settings, seats, defaults 
         {preview.tagLabel ? ` · tag “${preview.tagLabel}”` : ''}
       </div>
 
-      <div className="mt-4 flex items-center gap-3">
-        <button onClick={() => save()} disabled={isPending} className="cta-btn !px-5 !py-2 text-sm">
-          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
+      {dirty && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs" aria-live="polite">
+          <p className="mb-2 font-semibold uppercase tracking-wide text-amber-800">{changes.length} unsaved {changes.length === 1 ? 'change' : 'changes'}</p>
+          <ul className="space-y-1">
+            {changes.map(([label, from, to]) => (
+              <li key={label} className="flex flex-wrap items-center gap-1.5 text-ink">
+                <span className="w-32 text-inkdim">{label}</span>
+                <span className="rounded bg-red-100 px-1.5 py-0.5 text-red-700 line-through">{from}</span>
+                <ArrowRight className="h-3 w-3 text-inkdim" />
+                <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800">{to}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button onClick={() => save()} disabled={isPending || !dirty} className="cta-btn !px-5 !py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50">
+          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} {isPending ? 'Saving\u2026' : 'Save'}
         </button>
-        {status.text && <p className={`text-sm ${status.kind === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>{status.text}</p>}
+        {dirty && !isPending && (
+          <button onClick={undo} className="cta-btn-outline !px-4 !py-2 text-sm"><Undo2 className="h-4 w-4" /> Undo changes</button>
+        )}
+        <p className="text-sm" role="status" aria-live="polite">
+          {isPending ? <span className="text-inkdim">Saving&hellip;</span>
+            : shownError ? <span className="text-red-600">{shownError}</span>
+            : dirty ? <span className="font-medium text-amber-700">Unsaved changes</span>
+            : savedAt ? <span className="font-medium text-emerald-600">Saved at {clock(savedAt)}</span>
+            : <span className="text-inkdim">No changes yet</span>}
+        </p>
       </div>
     </div>
   );
