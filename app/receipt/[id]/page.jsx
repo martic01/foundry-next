@@ -6,8 +6,9 @@ import { getPayment, isAdminAdded } from '../../../lib/payments';
 import { verifyPaystackTransaction, describePaystackChannel } from '../../../lib/paystack';
 import PrintButton from '../../../components/dashboard/PrintButton';
 import Receipt from '../../../components/dashboard/Receipt';
+import { NOINDEX } from '../../../lib/seo';
 
-export const metadata = { title: 'Payment receipt — The Foundry' };
+export const metadata = { title: 'Payment receipt — The Foundry', ...NOINDEX };
 
 export default async function ReceiptPage({ params }) {
   const supabase = await createClient();

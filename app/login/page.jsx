@@ -1,6 +1,7 @@
 import GoogleSignInPage from '../../components/GoogleSignInPage';
+import { NOINDEX } from '../../lib/seo';
 
-export const metadata = { title: 'Student login — The Foundry' };
+export const metadata = { title: 'Student login — The Foundry', ...NOINDEX };
 
 export default function StudentLoginPage() {
   return (

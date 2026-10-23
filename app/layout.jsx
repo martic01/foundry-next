@@ -7,6 +7,7 @@ import ConditionalChrome from '../components/ConditionalChrome';
 import NavigationLoader from '../components/NavigationLoader';
 import { DialogProvider } from '../components/ui/DialogProvider';
 import { THEME_INIT_SCRIPT } from '../lib/theme-script';
+import { SITE_URL, SITE_NAME, SITE_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, OG_IMAGE } from '../lib/seo';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 // Syne, not Plus Jakarta Sans, for headers -- it has distinctive, flared
@@ -23,8 +24,32 @@ const syne = Syne({ subsets: ['latin'], weight: ['600', '700', '800'], variable:
 const racing = Racing_Sans_One({ subsets: ['latin'], weight: ['400'], variable: '--font-racing' });
 
 export const metadata = {
-  title: 'The Foundry — State AI Training',
-  description: 'A cohort-based course on building with AI as a real development tool — not just prompting, actually shipping working software.'
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_TITLE, template: '%s' },
+  description: SITE_DESCRIPTION,
+  keywords: SITE_KEYWORDS,
+  applicationName: SITE_NAME,
+  authors: [{ name: SITE_NAME }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: 'education',
+  formatDetection: { telephone: false, email: false, address: false },
+  alternates: { canonical: '/' },
+  manifest: '/manifest.webmanifest',
+  openGraph: {
+    type: 'website', url: '/', siteName: SITE_NAME, locale: 'en_NG', title: SITE_TITLE, description: SITE_DESCRIPTION, images: [OG_IMAGE]
+  },
+  twitter: { card: 'summary_large_image', title: SITE_TITLE, description: SITE_DESCRIPTION, images: [OG_IMAGE.url] },
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 } },
+  appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: 'default' },
+  // Paste the code from Google Search Console / Bing Webmaster into these env vars (optional).
+  verification: { google: process.env.GOOGLE_SITE_VERIFICATION || undefined, other: process.env.BING_SITE_VERIFICATION ? { 'msvalidate.01': process.env.BING_SITE_VERIFICATION } : undefined }
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: [{ media: '(prefers-color-scheme: light)', color: '#ffffff' }, { media: '(prefers-color-scheme: dark)', color: '#0f0f14' }]
 };
 
 export default function RootLayout({ children }) {

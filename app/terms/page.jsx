@@ -1,6 +1,10 @@
-export const metadata = {
-  title: 'Terms & Policy — State AI Training'
-};
+import { pageMeta } from '../../lib/seo';
+
+export const metadata = pageMeta({
+  title: 'Terms & Policy | The Foundry',
+  description: 'Enrollment, payment, refunds, conduct, uploads, certificates and privacy terms for learners on The Foundry coding and AI courses.',
+  path: '/terms'
+});
 
 const SECTIONS = [
   {

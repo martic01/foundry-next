@@ -6,6 +6,9 @@ import PortalShell from '../../components/portal/PortalShell';
 import NotificationHost from '../../components/dashboard/NotificationHost';
 import { createAdminClient } from '../../lib/supabase/admin';
 import { maybePurgeExpired } from '../../lib/purge';
+import { NOINDEX } from '../../lib/seo';
+
+export const metadata = NOINDEX;
 
 export default async function AdminLayout({ children }) {
   // Per-request cached lookups (lib/supabase/session.js): the root Nav

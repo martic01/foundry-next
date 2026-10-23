@@ -1,4 +1,5 @@
 import { Compass, Palette, Eye, Rocket, ArrowRight, Plus, Sparkles } from 'lucide-react';
+import { MIN_AGE } from '../lib/courses';
 
 const CATEGORIES = [
   {
@@ -119,11 +120,17 @@ export function SplitCta() {
   );
 }
 
-const FAQS = [
-  { q: "What's included with a ready-made site?", a: 'The full source, customized to your content and branding, deployed and ready to use — not a locked template you edit yourself.' },
-  { q: 'Can I request changes after it\u2019s built?', a: 'Yes — review happens before final handover specifically so revisions are part of the process, not an extra ask afterward.' },
-  { q: 'Do I need coding experience for the course?', a: 'No. Stage 1 starts from the fundamentals. If you already know HTML/CSS/JS, you can move straight into Stage 2 (React).' },
-  { q: 'Is the marketplace open now?', a: 'Not yet — ready-made sites and custom builds are still being built out. The cohort course is open now, though.' }
+// Shown on the home page AND published as FAQPage structured data (app/page.jsx),
+// so the wording is written the way people search.
+export const FAQS = [
+  { q: 'What will I learn in the coding and AI courses?', a: 'Stage 1 teaches HTML, CSS and JavaScript from the ground up, plus Git and GitHub, while using AI to explain, debug and refactor code. Stage 2 takes you into React: components, hooks, routing, Tailwind CSS and API integration. The Cybersecurity + AI course covers security foundations, hands-on labs and using AI to scan and defend.' },
+  { q: 'Do I need coding experience to start?', a: 'No. Stage 1 starts from the fundamentals. If you already know HTML, CSS and JavaScript you can go straight into Stage 2 (React).' },
+  { q: 'How do the courses work?', a: 'Each course runs as a cohort with live sessions, real projects and feedback from an actual instructor, not just an AI. Class videos, notes, links and announcements are in your learner dashboard.' },
+  { q: 'How do I register and pay?', a: 'Choose a course, sign in with Google, enter your full name and details, then pay securely online through Paystack. Prices are shown in naira on each course card, and you get a receipt straight away.' },
+  { q: 'Do I get a certificate?', a: 'Yes. Learners who complete a course receive a certificate with their full name and a unique ID. Anyone can confirm it is genuine with the Verify certificate button on this website.' },
+  { q: 'Is there a minimum age, and what do I need?', a: `You must be at least ${MIN_AGE} years old. You need a laptop and an internet connection; the Installation page in your dashboard walks you through setting up VS Code and Git.` },
+  { q: 'Do you offer HR training and services?', a: 'Yes. HR is by enquiry: message us on WhatsApp or email for HR training and full HR services such as recruitment, policies and payroll support.' },
+  { q: 'Can I rent a workspace, meeting room or event space?', a: 'Yes. We offer co-working desks, a meeting room, a private virtual office and a small event center for up to 30 guests (birthdays, Valentine dinners and mini events) at Yaya Abatan Road, Ogba, Lagos. Use the Make enquiry buttons on the home page.' }
 ];
 
 export function Faq() {
@@ -131,7 +138,7 @@ export function Faq() {
     <section className="bg-surface py-16">
       <div className="mx-auto max-w-3xl px-6">
         <p className="eyebrow mb-3">Questions</p>
-        <h2 className="mb-8 font-display text-2xl font-extrabold text-ink">Frequently asked</h2>
+        <h2 className="mb-8 font-display text-2xl font-extrabold text-ink">Frequently asked questions about our coding &amp; AI courses</h2>
         <div className="space-y-3">
           {FAQS.map((item) => (
             <details key={item.q} className="card group p-5">

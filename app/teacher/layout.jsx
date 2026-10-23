@@ -5,10 +5,13 @@ import { signOutAction } from '../actions';
 import PortalShell from '../../components/portal/PortalShell';
 import { createAdminClient } from '../../lib/supabase/admin';
 import { maybePurgeExpired } from '../../lib/purge';
+import { NOINDEX } from '../../lib/seo';
 
 // Teacher portal. Anyone who isn't a teacher is sent to their own home:
 // the admin to /admin, students to /dashboard. A teacher only ever sees
 // the batches the admin assigned to them (lib/teacher.js + RLS).
+export const metadata = NOINDEX;
+
 export default async function TeacherLayout({ children }) {
   const user = await getUser();
   if (!user) redirect('/login');

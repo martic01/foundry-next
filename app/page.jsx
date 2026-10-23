@@ -10,6 +10,55 @@ import { withPrice } from '../lib/pricing';
 import WorkspaceSection from '../components/WorkspaceSection';
 import EventSection from '../components/EventSection';
 import { getAvailability } from '../lib/course-status';
+import { FAQS } from '../components/MarketplaceSections';
+import { SITE_URL, SITE_NAME, ALT_NAME, SITE_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, pageMeta, jsonLd } from '../lib/seo';
+import { normalizePhone } from '../lib/site-contacts';
+
+export const metadata = pageMeta({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: '/', keywords: SITE_KEYWORDS });
+
+// Structured data (JSON-LD): lets Google understand the organisation and show the courses.
+function structuredData(settings, contacts) {
+  const org = {
+    '@type': 'EducationalOrganization',
+    '@id': `${SITE_URL}/#organization`,
+    name: SITE_NAME,
+    alternateName: ALT_NAME,
+    url: SITE_URL,
+    logo: `${SITE_URL}/icon.png`,
+    image: `${SITE_URL}/og-image.png`,
+    description: SITE_DESCRIPTION,
+    address: { '@type': 'PostalAddress', streetAddress: contacts.workspace.address, addressCountry: 'NG' },
+    contactPoint: [{ '@type': 'ContactPoint', contactType: 'customer support', email: contacts.hr.email, telephone: `+${normalizePhone(contacts.hr.whatsapp)}`, areaServed: 'NG', availableLanguage: 'English' }]
+  };
+  const courses = Object.values(COURSES).map((c) => {
+    const priced = withPrice(c, settings[c.key]);
+    return {
+      '@type': 'Course',
+      name: c.name,
+      description: `${c.tagline} You will learn: ${c.learn.join('; ')}.`,
+      provider: { '@id': `${SITE_URL}/#organization` },
+      url: `${SITE_URL}/register`,
+      image: `${SITE_URL}${c.image}`,
+      inLanguage: 'en',
+      educationalCredentialAwarded: 'Certificate of completion',
+      ...(c.contactOnly || !priced.priceNow ? {} : { offers: { '@type': 'Offer', category: 'Paid', price: String(priced.priceNow), priceCurrency: 'NGN', url: `${SITE_URL}/register` } })
+    };
+  });
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      org,
+      { '@type': 'WebSite', '@id': `${SITE_URL}/#website`, url: SITE_URL, name: SITE_NAME, alternateName: ALT_NAME, description: SITE_DESCRIPTION, inLanguage: 'en', publisher: { '@id': `${SITE_URL}/#organization` } },
+      { '@type': 'FAQPage', mainEntity: FAQS.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) },
+      ...[['Workspace', 'Co-working desks, a meeting room and a private virtual office'], ['Event Center', 'An open-air celebration space for birthdays, Valentine dinners and mini events, for up to 30 guests']].map(([n, d], i) => ({
+        '@type': 'LocalBusiness', '@id': `${SITE_URL}/#${i ? 'events' : 'workspace'}`, name: `${SITE_NAME} ${n}`, description: d, url: `${SITE_URL}/#${i ? 'events' : 'workspace'}`, image: `${SITE_URL}/og-image.png`,
+        telephone: `+${normalizePhone(contacts[i ? 'event' : 'workspace'].whatsapp)}`, email: contacts[i ? 'event' : 'workspace'].email,
+        address: { '@type': 'PostalAddress', streetAddress: contacts[i ? 'event' : 'workspace'].address, addressCountry: 'NG' }, parentOrganization: { '@id': `${SITE_URL}/#organization` }
+      })),
+      { '@type': 'ItemList', name: 'Courses at The Foundry', itemListElement: courses.map((course, i) => ({ '@type': 'ListItem', position: i + 1, item: course })) }
+    ]
+  };
+}
 
 export default async function FoundryHome() {
   // Admin-controlled registration state, read through a short-lived
@@ -22,6 +71,7 @@ export default async function FoundryHome() {
 
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structuredData(settings, contacts)) }} />
       <section className="mx-auto max-w-6xl px-6 pt-16 pb-6">
         <div className="relative flex flex-col desktop:flex-row desktop:items-stretch desktop:gap-10">
           <div className="w-full desktop:flex-1">

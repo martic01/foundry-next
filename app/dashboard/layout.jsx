@@ -7,11 +7,14 @@ import PortalShell from '../../components/portal/PortalShell';
 import ClassStatusBanner from '../../components/BatchTimer';
 import { COURSES } from '../../lib/courses';
 import NotificationHost from '../../components/dashboard/NotificationHost';
+import { NOINDEX } from '../../lib/seo';
 
 // This layout runs for EVERY /dashboard/* page, so the auth/role/blocked
 // checks live here now instead of being repeated at the top of each page
 // -- app/dashboard/page.jsx and its subpages can assume "there is a
 // signed-in, non-admin, non-blocked student" by the time they render.
+export const metadata = NOINDEX;
+
 export default async function DashboardLayout({ children }) {
   const user = await getUser();
   if (!user) redirect('/login'); // defense in depth -- middleware already covers this

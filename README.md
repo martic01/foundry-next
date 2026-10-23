@@ -423,3 +423,12 @@ Both sections are scroll-driven 3D scenes drawn on a plain 2D `<canvas>` (no Web
 - **Fallbacks:** visitors with reduced motion, without canvas, or before the scene loads see the plain card layout. "Skip tour" jumps past each scene. Drawing only runs while the section is on screen.
 - **Spacing:** a short "Celebrate in a space made for it" write-up sits between the Workspace tour and the Event center tour, with generous space around it.
 - **Contacts:** the Event center number, email and address are edited in Admin > HR, workspace & events. Run `supabase/4-event-center.sql` once.
+
+## SEO and sharing
+
+- **Meta tags:** every public page has its own title, description, canonical link, Open Graph and Twitter card (`lib/seo.js`, `app/layout.jsx`). The home title is "Learn Coding & AI Courses in Nigeria | The Foundry" with a 160-character description focused on the coding, AI, React and cybersecurity courses.
+- **Share image:** `public/og-image.png` (1200x630) is what WhatsApp, X, LinkedIn and Facebook show. Replace it with your own design any time (keep the size).
+- **Structured data:** the home page publishes JSON-LD (educational organisation, website and a Course list with live prices in NGN) so Google can show rich results.
+- **Crawling:** `app/sitemap.js` (/sitemap.xml) lists only the public pages; `app/robots.js` (/robots.txt) blocks admin, dashboard, teacher, API, auth, receipts and the offline page; those pages also carry `noindex`.
+- **Installable app:** `app/manifest.js` provides the web-app manifest and theme colour.
+- **Set these in your hosting env:** `NEXT_PUBLIC_SITE_URL` (your real domain), and optionally `GOOGLE_SITE_VERIFICATION` / `BING_SITE_VERIFICATION`. Then submit `https://YOUR-DOMAIN/sitemap.xml` in Google Search Console.
