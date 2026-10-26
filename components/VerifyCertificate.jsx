@@ -49,9 +49,9 @@ export default function VerifyCertificate() {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-[0.35em] text-inkdim hover:text-ink" title="Verify a certificate">
-        <BadgeCheck className="h-[1.25em] w-[1.25em] flex-shrink-0" />
-        <span>Verify certificate</span>
+      <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-[0.35em] rounded-md p-2.5 text-inkdim hover:text-ink sm:p-0" title="Verify a certificate" aria-label="Verify a certificate">
+        <BadgeCheck className="h-5 w-5 flex-shrink-0 sm:h-[1.25em] sm:w-[1.25em]" />
+        <span className="hidden sm:inline">Verify certificate</span>
       </button>
 
       {open && (

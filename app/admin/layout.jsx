@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { LayoutDashboard, Users2, Wallet, GraduationCap, NotebookText, FolderOpen, Lock, Megaphone, Presentation, Award, Building2 } from 'lucide-react';
+import { LayoutDashboard, Users2, Wallet, GraduationCap, NotebookText, FolderOpen, Lock, Megaphone, Presentation, Award } from 'lucide-react';
 import { getUser, getProfile } from '../../lib/supabase/session';
 import { signOutAction } from '../actions';
 import PortalShell from '../../components/portal/PortalShell';
@@ -41,7 +41,6 @@ export default async function AdminLayout({ children }) {
     { href: '/admin/content', label: 'Content', icon: <FolderOpen className="h-4 w-4" /> },
     { href: '/admin/announcements', label: 'Announcements & reports', icon: <Megaphone className="h-4 w-4" /> },
     { href: '/admin/registration', label: 'Registration', icon: <Lock className="h-4 w-4" /> },
-    { href: '/admin/contacts', label: 'HR, workspace & events', icon: <Building2 className="h-4 w-4" /> },
     { href: '/admin/teachers', label: 'Teachers', icon: <Presentation className="h-4 w-4" /> },
     { href: '/admin/students', label: 'Students', icon: <Users2 className="h-4 w-4" /> },
     { href: '/admin/notes', label: 'Notes', icon: <NotebookText className="h-4 w-4" /> },

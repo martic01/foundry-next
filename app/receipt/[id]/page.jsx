@@ -28,6 +28,14 @@ export default async function ReceiptPage({ params }) {
     notFound();
   }
 
+  // The receipt is for the student who paid (not whoever is viewing it, e.g.
+  // an admin), under the name they chose, with their Google name as fallback.
+  let owner = profile;
+  if (reg.user_id !== user.id) {
+    const { data } = await supabase.from('profiles').select('full_name, email').eq('id', reg.user_id).maybeSingle();
+    owner = data;
+  }
+
   const course = COURSES[reg.course];
   const payment = getPayment(reg);
 
@@ -81,8 +89,8 @@ export default async function ReceiptPage({ params }) {
         paidAt={paidAt}
         amountKobo={amountKobo}
         course={course}
-        studentName={user.user_metadata?.full_name || user.user_metadata?.name || user.email}
-        studentEmail={user.email}
+        studentName={owner?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email}
+        studentEmail={owner?.email || user.email}
         paymentMethod={paymentMethod}
         statusLabel={payment.label}
         balanceKobo={payment.balanceKobo}

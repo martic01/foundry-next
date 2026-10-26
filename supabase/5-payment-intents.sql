@@ -11,7 +11,7 @@ create table if not exists payment_intents (
   email text not null,
   full_name text,
   course course_key not null,
-  amount_kobo int not null check (amount_kobo > 0),
+  amount_kobo bigint not null check (amount_kobo > 0),
   age int not null,
   status text not null default 'pending' check (status in ('pending', 'completed', 'needs_review')),
   note text,
@@ -31,3 +31,6 @@ create policy "payment_intents_admin_read" on payment_intents for select using (
 -- To list payments that need a refund or a manual seat:
 --   select reference, email, course, amount_kobo, note, created_at
 --   from payment_intents where status = 'needs_review' order by created_at desc;
+
+-- If you ran an earlier version of this file, make sure the amount column is bigint:
+alter table payment_intents alter column amount_kobo type bigint;

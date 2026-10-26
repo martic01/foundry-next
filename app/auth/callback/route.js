@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '../../../lib/supabase/server';
 import { createAdminClient } from '../../../lib/supabase/admin';
+import { syncSignInProfile } from '../../../lib/profile-names';
 import { absorbShellAccounts, claimTeacherShells } from '../../../lib/accounts';
 
 // Google (via Supabase's built-in provider) redirects here with a `code`
@@ -51,12 +52,7 @@ export async function GET(request) {
       const user = data?.user;
       if (user) {
         const admin = createAdminClient();
-        const fullName = String(user.user_metadata?.full_name || user.user_metadata?.name || user.email || '').trim().slice(0, 120);
-        const { error: profileError } = await admin.from('profiles').upsert({
-          id: user.id,
-          full_name: fullName,
-          email: user.email
-        });
+        const { error: profileError } = await syncSignInProfile(admin, user);
         if (profileError) {
           console.error('profile upsert on sign-in failed:', profileError);
         } else if (user.email_confirmed_at) {

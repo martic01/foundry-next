@@ -6,6 +6,7 @@ import { COURSES } from '../../lib/courses';
 import ProfileCard from '../../components/dashboard/ProfileCard';
 import EnrollmentCard from '../../components/dashboard/EnrollmentCard';
 import InstallReminderModal from '../../components/dashboard/InstallReminderModal';
+import { installPlan } from '../../lib/installs';
 
 export const metadata = { title: 'Overview — The Foundry' };
 
@@ -26,9 +27,11 @@ export default async function DashboardOverviewPage() {
     supabase.from('class_links').select('batch_id')
   ]);
 
+  const plan = installPlan(profile, (registrations || []).filter((r) => !r.blocked).map((r) => r.course));
+
   return (
     <div>
-      {(!profile?.vscode_installed || !profile?.git_installed) && <InstallReminderModal />}
+      {plan.pendingCount > 0 && <InstallReminderModal plan={plan} />}
 
       <p className="eyebrow mb-2">Overview</p>
       <h1 className="mb-6 font-display text-2xl font-extrabold text-ink">

@@ -34,7 +34,7 @@ function EventIntro({ contacts, links }) {
     <section className="border-y border-line bg-surfaceMuted px-6 py-24 sm:py-32" aria-labelledby="event-intro-title">
       <div className="mx-auto max-w-3xl text-center">
         <p className="eyebrow mb-3">Event center</p>
-        <h2 id="event-intro-title" className="mb-4 font-display text-3xl font-extrabold text-ink sm:text-4xl">Celebrate in a space made for it</h2>
+        <h2 id="event-intro-title" className="fluid-h1 mb-4 font-display font-extrabold text-ink">Celebrate in a space made for it</h2>
         <p className="mb-4 text-base leading-relaxed text-inkdim">
           Our event center is a small, beautifully decorated open-air space for the moments that matter: birthdays, Valentine dinners, proposals,
           baby showers and other mini events. It holds up to <strong className="text-ink">30 guests</strong>, so it stays warm and personal.
@@ -60,7 +60,7 @@ function StaticEvents({ contacts, links }) {
     <section id="events" className="bg-surface py-16">
       <div className="mx-auto max-w-6xl px-6">
         <p className="eyebrow mb-3">Event center</p>
-        <h2 className="mb-3 max-w-2xl font-display text-2xl font-extrabold text-ink sm:text-3xl">A beautiful open-air space for your small celebrations</h2>
+        <h2 className="fluid-h2 mb-3 max-w-2xl font-display font-extrabold text-ink">A beautiful open-air space for your small celebrations</h2>
         <p className="mb-2 flex flex-wrap items-center gap-2 text-sm text-inkdim">
           <MapPin className="h-4 w-4 flex-shrink-0 text-brand" />
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline-offset-2 hover:underline">{contacts.address}</a>

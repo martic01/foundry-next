@@ -56,8 +56,8 @@ export async function saveCertificateNameAction(rawName) {
   const admin = createAdminClient();
   // The profile row normally exists from sign-in; create it only if it doesn't.
   const { error } = me
-    ? await admin.from('profiles').update({ certificate_name: v.name }).eq('id', user.id)
-    : await admin.from('profiles').upsert({ id: user.id, full_name: user.user_metadata?.full_name || user.email, email: user.email, certificate_name: v.name });
+    ? await admin.from('profiles').update({ certificate_name: v.name, full_name: v.name }).eq('id', user.id)
+    : await admin.from('profiles').upsert({ id: user.id, full_name: v.name, email: user.email, certificate_name: v.name });
   if (error) return { error: 'We couldn\u2019t save your name just now. Please try again.' };
   return { ok: true, name: v.name };
 }

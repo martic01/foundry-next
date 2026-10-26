@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import { updateSiteContact } from '../../app/admin/actions';
-import { isValidPhone, isValidEmail } from '../../lib/site-contacts';
+import { isValidPhone, isValidEmail } from '../../lib/contact-validation';
 
 export default function ContactSettings({ sectionKey, title, values, withAddress = false }) {
   const [whatsapp, setWhatsapp] = useState(values.whatsapp);

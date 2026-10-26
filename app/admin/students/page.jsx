@@ -14,13 +14,15 @@ export default async function StudentsPage() {
   const prices = Object.fromEntries(Object.values(COURSES).map((c) => [c.key, effectivePrice(c, courseSettings[c.key]).now]));
 
   const regBase = 'id, user_id, course, batch_id, paystack_reference, amount_kobo, batches(label)';
-  const [{ data: profiles }, { data: allBatches }, { data: assignments }, { data: teacherRows }, withPayment] = await Promise.all([
-    supabase.from('profiles').select('id, full_name, email, blocked, created_at').eq('role', 'student').order('full_name'),
+  const [{ data: profilesA, error: profilesErr }, { data: allBatches }, { data: assignments }, { data: teacherRows }, withPayment] = await Promise.all([
+    supabase.from('profiles').select('id, full_name, google_name, email, blocked, created_at').eq('role', 'student').order('full_name'),
     supabase.from('batches').select('id, course, label, capacity').order('created_at'),
     supabase.from('batch_teachers').select('batch_id, teacher_id'),
     supabase.from('profiles').select('id, full_name').eq('role', 'teacher'),
     supabase.from('registrations').select(`${regBase}, amount_due_kobo, payment_status, payment_method`).eq('status', 'paid')
   ]);
+  // supabase/6-names-and-installs.sql not run yet? Load without the Gmail-name column.
+  const profiles = profilesErr ? (await supabase.from('profiles').select('id, full_name, email, blocked, created_at').eq('role', 'student').order('full_name')).data : profilesA;
   // Payment-status migration not run yet? Fall back to the old columns so
   // every student still lists (all then read as paid).
   const registrations = withPayment.error

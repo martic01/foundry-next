@@ -35,7 +35,7 @@ export async function POST(request) {
   // Best-effort: it must never undo a payment.
   try {
     const v = validateCertificateName(body?.certificateName);
-    if (v.ok) await admin.from('profiles').update({ certificate_name: v.name }).eq('id', user.id);
+    if (v.ok) await admin.from('profiles').update({ certificate_name: v.name, full_name: v.name }).eq('id', user.id);
   } catch { /* ignore */ }
 
   return NextResponse.json({ ok: true });

@@ -8,6 +8,7 @@ import ClassStatusBanner from '../../components/BatchTimer';
 import { COURSES } from '../../lib/courses';
 import NotificationHost from '../../components/dashboard/NotificationHost';
 import { NOINDEX } from '../../lib/seo';
+import { installPlan } from '../../lib/installs';
 
 // This layout runs for EVERY /dashboard/* page, so the auth/role/blocked
 // checks live here now instead of being repeated at the top of each page
@@ -60,7 +61,7 @@ export default async function DashboardLayout({ children }) {
 
   // Drives the sidebar's blinking dot on Installation -- goes away for
   // good once both checkboxes on that page are ticked.
-  const installationPending = !profile?.vscode_installed || !profile?.git_installed;
+  const installationPending = installPlan(profile, (bannerRegs || []).map((r) => r.course)).pendingCount > 0;
 
   // Class clock for every batch this student is in -- shown at the top
   // of every dashboard page, live (see components/BatchTimer.jsx).

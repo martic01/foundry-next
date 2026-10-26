@@ -1374,7 +1374,7 @@ export async function setCertificateName(userId, rawName) {
   const v = validateCertificateName(rawName);
   if (v.error) return { error: v.error };
   const db = createAdminClient();
-  const { error } = await db.from('profiles').update({ certificate_name: v.name }).eq('id', userId);
+  const { error } = await db.from('profiles').update({ certificate_name: v.name, full_name: v.name }).eq('id', userId);
   if (error) return { error: 'Couldn\u2019t save the name. Has supabase/2-updates.sql been run?' };
   revalidatePath('/admin/certificates');
   return { ok: true, name: v.name };
@@ -1402,5 +1402,6 @@ export async function updateSiteContact(key, values) {
   if (error) return { error: dbError(error) };
   revalidateTag(SITE_CONTACTS_TAG);
   revalidatePath('/');
+  revalidatePath('/admin/registration');
   return { ok: true };
 }

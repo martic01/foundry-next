@@ -84,7 +84,7 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = students.filter((s) => {
-      if (q && !`${s.full_name || ''} ${s.email || ''}`.toLowerCase().includes(q)) return false;
+      if (q && !`${s.full_name || ''} ${s.google_name || ''} ${s.email || ''}`.toLowerCase().includes(q)) return false;
       if (pay === 'all' && src === 'all') return true; // incl. students with no registration yet
       return s.courses.some(regMatches);
     });
@@ -182,6 +182,7 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="truncate text-sm font-medium text-ink">{s.full_name || 'Unnamed'}</p>
+                {s.google_name && s.google_name !== s.full_name && <span className="truncate text-xs text-inkdim">Gmail: {s.google_name}</span>}
                 {s.blocked && (
                   <span className="flex-shrink-0 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-600">
                     Blocked

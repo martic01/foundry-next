@@ -8,6 +8,7 @@ import { finalizePayment } from '../../../../lib/finalize-payment';
 //   https://YOUR-DOMAIN/api/payments/webhook
 // Nothing here trusts the request until its signature checks out.
 export async function POST(request) {
+  if (Number(request.headers.get('content-length') || 0) > 100_000) return NextResponse.json({ error: 'Too large.' }, { status: 413 });
   const raw = await request.text();
   if (!(await isValidPaystackSignature(raw, request.headers.get('x-paystack-signature')))) {
     return NextResponse.json({ error: 'Invalid signature.' }, { status: 401 });

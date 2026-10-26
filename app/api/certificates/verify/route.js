@@ -20,9 +20,25 @@ function limited(ip) {
   return list.length > MAX_PER_WINDOW;
 }
 
+// ab***@gmail.com: enough for the owner to recognise, not enough to harvest.
+function maskEmail(e) {
+  const [local = '', domain = ''] = String(e || '').split('@');
+  if (!domain) return '';
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
 export async function POST(request) {
   const ip = (request.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
-  if (limited(ip)) return NextResponse.json({ valid: false, error: 'Too many checks. Please wait a minute and try again.' }, { status: 429 });
+  // Shared database counter (works across serverless instances); the in-memory
+  // map is only the fallback if that call fails.
+  let blocked;
+  try {
+    const { data, error } = await createAdminClient().rpc('check_rate_limit', { p_key: `cert:${ip}`, p_max: MAX_PER_WINDOW, p_window_seconds: 60 });
+    blocked = error ? limited(ip) : data === false;
+  } catch {
+    blocked = limited(ip);
+  }
+  if (blocked) return NextResponse.json({ valid: false, error: 'Too many checks. Please wait a minute and try again.' }, { status: 429 });
 
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ valid: false, error: 'Send a certificate id.' }, { status: 400 }); }
@@ -40,7 +56,7 @@ export async function POST(request) {
     return NextResponse.json({
       valid: true,
       name: data.student_name,
-      email: data.student_email,
+      email: maskEmail(data.student_email),
       course: data.course_title,
       awardedAt: data.awarded_at
     }, { headers: { 'Cache-Control': 'no-store' } });

@@ -13,6 +13,8 @@ import { saveCertificateNameAction } from '../app/actions';
 import { validateCertificateName } from '../lib/certificates';
 import { withPrice } from '../lib/pricing';
 import ContactButtons from './ContactButtons';
+import { WHATSAPP_GROUP_URL } from '../lib/community';
+import { COURSE_TOOLS, TOOLS } from '../lib/install-guides';
 
 export default function RegisterFlow({ settingsByCourse, hrContacts }) {
   const params = useSearchParams();
@@ -66,7 +68,7 @@ export default function RegisterFlow({ settingsByCourse, hrContacts }) {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
-      {done ? <DoneStep /> : <DetailsStep course={course} onDone={() => setDone(true)} onPriceChange={setPriceOverride} />}
+      {done ? <DoneStep course={course} /> : <DetailsStep course={course} onDone={() => setDone(true)} onPriceChange={setPriceOverride} />}
     </main>
   );
 }
@@ -424,7 +426,8 @@ function DetailsStep({ course, onDone, onPriceChange }) {
   );
 }
 
-function DoneStep() {
+function DoneStep({ course }) {
+  const tools = (COURSE_TOOLS[course?.key] || []).map((id) => TOOLS[id].label);
   return (
     <section className="card p-6 md:p-9">
       <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
@@ -437,8 +440,20 @@ function DoneStep() {
         Student login link at the top of this page — with the same Google
         account you just used.
       </p>
-      <a href="/" className="cta-btn">
-        Back to The Foundry <ArrowRight className="h-4 w-4" />
+      <div className="mb-3 max-w-md rounded-lg border border-emerald-300 bg-emerald-50 p-4">
+        <p className="mb-1 text-sm font-semibold text-emerald-900">Next step 1: join the class WhatsApp group</p>
+        <p className="mb-3 text-xs text-emerald-800">Class updates and help from instructors and classmates are shared there.</p>
+        <a href={WHATSAPP_GROUP_URL} target="_blank" rel="noopener noreferrer" className="cta-btn w-fit">Join WhatsApp group</a>
+      </div>
+      {tools.length > 0 && (
+        <div className="mb-6 max-w-md rounded-lg border border-line bg-surfaceMuted p-4">
+          <p className="mb-1 text-sm font-semibold text-ink">Next step 2: install {tools.join(', ')}</p>
+          <p className="mb-3 text-xs text-inkdim">Do this before your first class. The guides for your course are in your dashboard.</p>
+          <a href="/dashboard/installation" className="cta-btn-outline w-fit">Open Installation</a>
+        </div>
+      )}
+      <a href="/dashboard" className="cta-btn">
+        Go to my dashboard <ArrowRight className="h-4 w-4" />
       </a>
     </section>
   );

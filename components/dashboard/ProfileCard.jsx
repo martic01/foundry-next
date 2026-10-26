@@ -54,6 +54,10 @@ export default function ProfileCard({ profile, registrations = [] }) {
             )}
           </div>
 
+          {profile?.google_name && profile?.full_name && profile.google_name !== profile.full_name && (
+            <p className="mt-0.5 text-xs text-white/45">Gmail name: {profile.google_name}</p>
+          )}
+
           {profile?.email && (
             <p className="mt-1 flex items-center gap-1.5 text-sm text-white/60">
               <Mail className="h-3.5 w-3.5" /> {profile.email}

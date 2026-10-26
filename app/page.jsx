@@ -83,10 +83,10 @@ export default async function FoundryHome() {
                 under the small corner-positioned bot below, on mobile/
                 tablet specifically -- desktop:pr-0 clears it once the
                 bot moves to its own side column instead. */}
-            <h1 className="mb-4 max-w-2xl pr-24 font-display text-3xl font-extrabold leading-tight text-ink sm:pr-28 sm:text-4xl desktop:pr-0">
+            <h1 className="fluid-h1 mb-4 max-w-2xl pr-[clamp(4.5rem,22vw,7rem)] font-display font-extrabold text-ink desktop:pr-0">
               Learn to build with AI as a real development tool — not just a prompt box.
             </h1>
-            <p className="max-w-2xl text-inkdim">
+            <p className="fluid-lead max-w-2xl text-inkdim">
               A cohort-based course for people who want to actually ship
               software, not just talk about it. Our web-development stages take you from the
               fundamentals to shipping full React applications, each with live

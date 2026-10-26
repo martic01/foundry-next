@@ -113,7 +113,7 @@ export default function PortalShell({ navItems, roleLabel, userName, userEmail, 
         </div>
       </aside>
 
-      <main className="flex-1 px-4 py-8 sm:px-8 md:py-10">
+      <main className="min-w-0 flex-1 px-4 py-8 sm:px-8 md:py-10">
         <div className="mx-auto max-w-5xl">{children}</div>
       </main>
     </div>

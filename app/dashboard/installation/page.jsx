@@ -5,7 +5,11 @@ import { INSTALLATION_OS } from '../../../lib/installation-content';
 import { toCloudinaryDownloadUrl } from '../../../lib/cloudinary';
 import Tabs from '../../../components/Tabs';
 import VideoEmbed from '../../../components/VideoEmbed';
-import InstallCheckboxes from '../../../components/dashboard/InstallCheckboxes';
+import { createClient } from '../../../lib/supabase/server';
+import { COURSES } from '../../../lib/courses';
+import { COURSE_TOOLS, TOOLS } from '../../../lib/install-guides';
+import { installPlan, isToolDone } from '../../../lib/installs';
+import { InstallProvider, ToolCheck, CourseProgress, WhatsAppGroupCard } from '../../../components/dashboard/InstallState';
 
 export const metadata = { title: 'Installation — The Foundry' };
 
@@ -74,34 +78,77 @@ function ToolPanel({ tool }) {
   );
 }
 
+// One tool's guide. VS Code and Git have per-OS write-ups; the others are the
+// same on every computer.
+function ToolGuide({ id }) {
+  const info = TOOLS[id];
+  if (info.perOs) {
+    return (
+      <div>
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-inkdim">Choose your operating system</p>
+        <Tabs tabs={INSTALLATION_OS.map((os) => ({ key: os.key, label: os.label, content: (<div><p className="mb-4 text-xs text-inkdim">{os.note}</p><ToolPanel tool={os.tools[id]} /></div>) }))} />
+      </div>
+    );
+  }
+  return <ToolPanel tool={{ label: info.label, steps: info.steps, downloadUrl: info.downloadUrl, downloadLabel: info.downloadLabel, downloadDescription: info.downloadDescription }} />;
+}
+
 export default async function InstallationPage() {
   const user = await getUser();
   const profile = await getProfile(user.id);
+  const supabase = await createClient();
+  const { data: regs } = await supabase.from('registrations').select('course').eq('user_id', user.id).eq('status', 'paid');
+  const courseKeys = [...new Set((regs || []).map((r) => r.course))];
+  const plan = installPlan(profile, courseKeys);
 
-  const osTabs = INSTALLATION_OS.map((os) => ({
-    key: os.key,
-    label: os.label,
-    content: (
+  const allIds = [...new Set(plan.courses.flatMap((c) => COURSE_TOOLS[c.key])), 'whatsapp'];
+  const initial = Object.fromEntries(allIds.map((id) => [id, isToolDone(profile, id)]));
+
+  if (!plan.courses.length) {
+    return (
       <div>
-        <p className="mb-4 text-xs text-inkdim">{os.note}</p>
-        <Tabs
-          tabs={[
-            { key: 'vscode', label: os.tools.vscode.label, content: <ToolPanel tool={os.tools.vscode} /> },
-            { key: 'git', label: os.tools.git.label, content: <ToolPanel tool={os.tools.git} /> }
-          ]}
-        />
+        <p className="eyebrow mb-2">Installation</p>
+        <h1 className="mb-2 font-display text-2xl font-extrabold text-ink">Installation</h1>
+        <div className="card p-6 text-sm text-inkdim">Once you are registered for a course, the tools you need for it will appear here.</div>
       </div>
-    )
-  }));
+    );
+  }
+
+  const courseTabs = plan.courses.map((c) => {
+    const ids = COURSE_TOOLS[c.key];
+    return {
+      key: c.key,
+      label: COURSES[c.key]?.name || c.name,
+      content: (
+        <div>
+          <CourseProgress ids={ids} />
+          <Tabs
+            tabs={ids.map((id) => ({
+              key: id,
+              label: TOOLS[id].label,
+              content: (
+                <div className="flex flex-col gap-4">
+                  <p className="text-sm text-inkdim">{TOOLS[id].why}</p>
+                  <ToolCheck id={id} label={TOOLS[id].label} />
+                  <ToolGuide id={id} />
+                </div>
+              )
+            }))}
+          />
+        </div>
+      )
+    };
+  });
 
   return (
-    <div>
+    <InstallProvider initial={initial}>
       <p className="eyebrow mb-2">Installation</p>
-      <h1 className="mb-2 font-display text-2xl font-extrabold text-ink">Set up VS Code &amp; Git</h1>
+      <h1 className="mb-2 font-display text-2xl font-extrabold text-ink">Set up for your {plan.courses.length > 1 ? 'courses' : 'course'}</h1>
       <p className="mb-6 text-sm text-inkdim">
-        This is <span className="font-semibold text-ink">required before your first class</span> --
-        you won&apos;t be able to follow along without both installed.
+        This is <span className="font-semibold text-ink">required before your first class</span>. You only see what your own course needs.
       </p>
+
+      <WhatsAppGroupCard />
 
       <div className="card mb-6 p-5">
         <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
@@ -109,19 +156,14 @@ export default async function InstallationPage() {
         </p>
         <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {LAPTOP_SPECS.map((spec) => (
-            <li key={spec} className="text-sm text-inkdim">
-              {spec}
-            </li>
+            <li key={spec} className="text-sm text-inkdim">{spec}</li>
           ))}
         </ul>
       </div>
 
-      <InstallCheckboxes vscodeInstalled={profile?.vscode_installed || false} gitInstalled={profile?.git_installed || false} />
-
-      <div className="card mt-6 p-6">
-        <p className="mb-4 text-xs font-medium uppercase tracking-wide text-inkdim">Choose your operating system</p>
-        <Tabs tabs={osTabs} />
+      <div className="card p-6">
+        <Tabs tabs={courseTabs} />
       </div>
-    </div>
+    </InstallProvider>
   );
 }

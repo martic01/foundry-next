@@ -55,17 +55,16 @@ const UNITS = [
 export function CountdownBoxes({ seconds, dim = false, size = 'md' }) {
   const parts = splitDuration(seconds);
   const big = size === 'md';
+  // Five equal columns that share whatever width there is, and the numbers
+  // scale with the screen, so the clock never pushes the page sideways.
   return (
-    <div className={`flex items-stretch gap-1.5 sm:gap-2 ${dim ? 'opacity-60' : ''}`} role="timer" aria-label="Time remaining">
+    <div className={`grid w-full max-w-full grid-cols-5 gap-1 sm:gap-2 ${big ? 'sm:w-[22rem]' : 'sm:w-[18rem]'} ${dim ? 'opacity-60' : ''}`} role="timer" aria-label="Time remaining">
       {UNITS.map(([key, label]) => (
-        <div
-          key={key}
-          className={`flex flex-col items-center rounded-lg border border-line bg-surfaceMuted text-center ${big ? 'min-w-[3.4rem] px-2 py-2 sm:min-w-[4.2rem]' : 'min-w-[2.8rem] px-1.5 py-1.5'}`}
-        >
-          <span className={`font-display font-extrabold tabular-nums text-ink ${big ? 'text-xl sm:text-2xl' : 'text-base'}`}>
+        <div key={key} className="flex min-w-0 flex-col items-center rounded-lg border border-line bg-surfaceMuted px-0.5 py-1.5 text-center sm:py-2">
+          <span className={`font-display font-extrabold tabular-nums leading-tight text-ink ${big ? 'text-[clamp(1rem,4.6vw,1.5rem)]' : 'text-[clamp(0.875rem,3.6vw,1rem)]'}`}>
             {String(parts[key]).padStart(2, '0')}
           </span>
-          <span className="text-[10px] font-medium uppercase tracking-wide text-inkdim">{label}</span>
+          <span className="max-w-full truncate text-[clamp(8px,2.3vw,10px)] font-medium uppercase tracking-wide text-inkdim">{label}</span>
         </div>
       ))}
     </div>
@@ -84,8 +83,8 @@ export function BatchClockCard({ batch, now, title, subtitle }) {
   }[status];
 
   return (
-    <div className={`card flex flex-col gap-3 border-l-4 p-4 sm:flex-row sm:items-center sm:justify-between ${accent}`}>
-      <div className="min-w-0">
+    <div className={`card flex flex-wrap items-center justify-between gap-3 border-l-4 p-3 sm:p-4 ${accent}`}>
+      <div className="min-w-0 flex-1 basis-44">
         <div className="mb-1 flex flex-wrap items-center gap-2">
           <StatusPill status={status} />
           {title && <p className="truncate text-sm font-semibold text-ink">{title}</p>}

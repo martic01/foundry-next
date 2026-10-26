@@ -7,7 +7,7 @@ export default function NotFound() {
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-6 py-20 text-center">
       <p className="eyebrow mb-3">404</p>
-      <h1 className="mb-3 font-display text-3xl font-extrabold text-ink">We can&apos;t find that page</h1>
+      <h1 className="fluid-h1 mb-3 font-display font-extrabold text-ink">We can&apos;t find that page</h1>
       <p className="mb-6 text-sm text-inkdim">The link may be old or mistyped. Explore our coding and AI courses instead.</p>
       <div className="flex flex-wrap justify-center gap-3">
         <Link href="/" className="cta-btn">Back to home</Link>

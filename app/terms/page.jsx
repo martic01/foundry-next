@@ -151,7 +151,7 @@ const SECTIONS = [
 export default function TermsPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="mb-2 font-display text-3xl font-extrabold text-ink">State AI Training — Terms &amp; Policy</h1>
+      <h1 className="fluid-h1 mb-2 font-display font-extrabold text-ink">State AI Training — Terms &amp; Policy</h1>
       <p className="mb-8 text-sm italic text-inkdim">
         Last updated: 20 October 2026 — added batches and teachers, uploads and expiry, reporting, and certificates (Sections 15–18 and 20).
       </p>

@@ -39,3 +39,57 @@ Every admin action calls `requireAdmin()` / `requireStaff()` first; teachers are
 - IDs: 12 chars from a 31-char alphabet via `crypto.randomInt`, UNIQUE in the database, retried on collision; one certificate per student per course.
 - Only users with role `student` enrolled (paid) in the course can be awarded; admin/teachers cannot.
 - Public verify route returns one record for one exact ID, is rate limited (10/min/IP per instance), and is `no-store`. It exposes name + email by design; to mask the email, change one line in `app/api/certificates/verify/route.js`.
+
+---
+
+# Security review 2: 24 Oct 2026
+
+Scope: all code added since the first review (server-started Paystack payments, webhook, pending-payment table, name handling, per-course installation, WhatsApp link, SEO files) plus a fresh pass over every server action and API route, the SQL functions and grants, secrets handling, headers and every external URL in the code.
+
+**What this review could not do:** the sandbox has no access to the npm registry, so `npm audit` could not run; there was no live database, so Row Level Security was read, not exercised; no real Paystack call was made. Items marked "you" need to be done or confirmed on your side.
+
+## Fixed in this version
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| 1 | Medium | The public certificate-check page returned the student's **full email** to anyone with a certificate id | Email is masked (`ab***@gmail.com`); name, course and date unchanged |
+| 2 | Medium | Certificate-check rate limit lived in one server's memory, so serverless instances each had their own count | Now uses the shared database counter (`check_rate_limit`), in-memory only as a fallback |
+| 3 | Medium | Payment amount was chosen in the browser and only checked afterwards; a price change mid-payment took money without a seat | Server starts every payment (`/api/payments/initialize`) with the live price and records it; verify and webhook check the money against that record. Mismatches are flagged `needs_review` and the student gets the reference |
+| 4 | Medium | A payment completed with the browser closed created no seat | Signed webhook (`/api/payments/webhook`): HMAC-SHA512 of the raw body, constant-time compare, then the transaction is re-verified with Paystack before anything is written. Safe to run twice (unique reference) |
+| 5 | Low | Sign-in and payment code overwrote the name a student chose with their Google name | Chosen name kept; Google name stored separately as `google_name` |
+| 6 | Low | An admin opening a student's receipt saw the **admin's** name and email on it | Receipt uses the paying student's profile |
+| 7 | Low | Old `setInstallationStatus` server action was a public endpoint with no check of its own (the database limited it to the caller's row) | Removed. New `set_tool_installed()` function: signed-in only, validated tool id, own row only, fixed `search_path`, revoked from `public`/`anon` |
+| 8 | Low | A client component imported a server module (`next/cache` + database client) just for two validators | Validators moved to `lib/contact-validation.js` |
+| 9 | Low | Maximum price (₦50,000,000) in kobo exceeds a 32-bit database integer | Cap lowered to ₦20,000,000; the pending-payment table uses `bigint` |
+| 10 | Low | Abandoned payment attempts would pile up | The daily purge deletes pending attempts older than 7 days |
+| 11 | Low | Webhook accepted any body size | Rejected above 100 KB before reading it |
+| 12 | Info | WhatsApp group link came from an env var | Only an `https://chat.whatsapp.com/...` link is accepted; anything else falls back to the default |
+
+## Checked and fine (this pass)
+- All 41 admin server actions start with `requireAdmin()` / `requireStaff()`; the student-side actions check the signed-in user and validate their input.
+- `payment_intents` has RLS on with an admin read policy only; students cannot read or write it. Webhook, verify and initialize use the service-role key, server side only (no client file imports it).
+- Payment checks in `finalizePayment`: amount and currency equal the recorded payment, payer email equals the account that started it, reference belongs to the signed-in user, registration state, one seat per course, duplicate payments flagged.
+- Only `NEXT_PUBLIC_` values reach the browser: the Supabase anon key, Cloudinary cloud name, EmailJS public key/service/template, installer URLs, site URL, WhatsApp link. No secret key appears in any client file.
+- `dangerouslySetInnerHTML` is used twice, both with fixed or escaped content (the structured-data JSON escapes `<`; the theme script is a constant).
+- No `eval`, no `innerHTML`, redirects after sign-in are validated, every private area is `noindex` and disallowed in `robots.txt`.
+- Name field accepts letters, spaces, hyphens, apostrophes only (so it cannot carry markup into emails or certificates).
+
+## External sources
+| Source | Used for | Note |
+|---|---|---|
+| Paystack (`api.paystack.co`, `checkout.paystack.com`) | payments | Server calls use the secret key; popup in an iframe, allowed in the CSP |
+| Supabase | database and sign-in | Anon key is public by design; protected by RLS |
+| Cloudinary | class videos, installer files | Uploads are signed by the server for signed-in staff only |
+| EmailJS | admin notification email | Sent from the server with the private key |
+| Unsplash images | workspace and event section photos | Hot-linked from a third party (visitor IPs go to them, and they can change or remove a photo). **Recommend saving the photos into `public/` and serving them yourself** |
+| YouTube embeds | installation videos | Exact host and id pattern enforced. Consider `youtube-nocookie.com` |
+| Official vendor pages (code.visualstudio.com, git-scm.com, nodejs.org, virtualbox.org, kali.org) | installation links | Plain links to the vendors, nothing is embedded or auto-downloaded |
+| chat.whatsapp.com | class group | Plain link, opens in a new tab with `noopener noreferrer` |
+
+## Still open: do these
+1. **Upgrade Next.js** (14.2.35 gets no more security fixes; move to 15.5.28+ or 16.4.1) and commit a `package-lock.json`. Then run `npm audit`. I could not run it here.
+2. **Enforce the Content-Security-Policy**: it is still report-only. Click through sign-in, payment, video and upload once with the browser console open, then rename the header to `Content-Security-Policy`.
+3. **Paystack:** live keys only in the host's environment variables; set the webhook URL; the webhook uses the same secret key to sign, so keep that key private.
+4. **Supabase dashboard:** Email sign-in off, Google only, strict Redirect URL allow-list, no public sign-up (see the first review). Run `supabase/5-payment-intents.sql` and `6-names-and-installs.sql`.
+5. **Two-factor sign-in** on the Google account used for admin, and on Supabase, Vercel, Paystack, Cloudinary, EmailJS and GitHub.
+6. `course_settings` and `site_settings` are readable by anyone with the public key and include an `updated_by` column (the admin's user id). Not sensitive on its own, but you can remove the column from the public policy later.
+7. Rotate keys if any earlier zip containing `.env.local` was shared (first review, item 1).

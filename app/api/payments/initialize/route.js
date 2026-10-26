@@ -22,7 +22,7 @@ export async function POST(request) {
   const session = await createSessionClient();
   const { data: { user } } = await session.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Please sign in with Google before paying.' }, { status: 401 });
-  const { data: me } = await session.from('profiles').select('role, blocked').eq('id', user.id).maybeSingle();
+  const { data: me } = await session.from('profiles').select('role, blocked, full_name, certificate_name').eq('id', user.id).maybeSingle();
   if (me?.role === 'teacher' || me?.role === 'admin') return NextResponse.json({ error: 'Teacher and admin accounts can’t register for a course.' }, { status: 403 });
   if (me?.blocked) return NextResponse.json({ error: 'This account’s access has been restricted.' }, { status: 403 });
 
@@ -49,7 +49,7 @@ export async function POST(request) {
   }
 
   const email = user.email;
-  const fullName = user.user_metadata?.full_name || user.user_metadata?.name || email;
+  const fullName = me?.certificate_name || me?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || email;
   const reference = 'FOUNDRY_' + course.key.toUpperCase() + '_' + Date.now() + '_' + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
   const amountKobo = priceNow * 100;
 

@@ -53,7 +53,7 @@ function StaticWorkspace({ contacts }) {
     <section id="workspace" className="bg-surfaceMuted py-16">
       <div className="mx-auto max-w-6xl px-6">
         <p className="eyebrow mb-3">Workspace</p>
-        <h2 className="mb-3 max-w-2xl font-display text-2xl font-extrabold text-ink sm:text-3xl">A conducive place to work, meet and run your business</h2>
+        <h2 className="fluid-h2 mb-3 max-w-2xl font-display font-extrabold text-ink">A conducive place to work, meet and run your business</h2>
         <p className="mb-2 flex flex-wrap items-center gap-2 text-sm text-inkdim">
           <MapPin className="h-4 w-4 flex-shrink-0 text-brand" />
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline-offset-2 hover:underline">{contacts.address}</a>
