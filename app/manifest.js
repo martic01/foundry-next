@@ -8,11 +8,13 @@ export default function manifest() {
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    background_color: '#ffffff',
+    background_color: '#0f0f14', // the colour of the splash screen while the installed app starts
     theme_color: '#b8860b',
     categories: ['education', 'productivity'],
     icons: [
+      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/icon.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       { src: '/apple-icon.png', sizes: '180x180', type: 'image/png' }
     ]
   };

@@ -2,6 +2,7 @@ import { createClient } from '../../../lib/supabase/server';
 import { getUser } from '../../../lib/supabase/session';
 import CertificateTabs from '../../../components/certificate/CertificateTabs';
 import { formatCode, formatCertDate } from '../../../lib/certificates';
+import { SITE_URL } from '../../../lib/seo';
 
 export const metadata = { title: 'Certificate — The Foundry' };
 
@@ -20,7 +21,8 @@ export default async function CertificatePage() {
     codeFormatted: formatCode(c.code),
     name: c.student_name,
     course: c.course_title,
-    date: formatCertDate(c.awarded_at)
+    date: formatCertDate(c.awarded_at),
+    verifyUrl: `${SITE_URL}/verify/${c.code}`
   }));
 
   return (

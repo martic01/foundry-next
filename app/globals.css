@@ -197,3 +197,18 @@
 @media (prefers-reduced-motion: reduce) {
   .bar-shimmer::after, .row-in, .busy-stripes, .pop-check { animation: none; }
 }
+
+/* ---- Branded app loader (components/ui/AppLoader.jsx) ---- */
+@keyframes foundry-spin { to { transform: rotate(360deg); } }
+@keyframes foundry-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+@keyframes foundry-glow { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+@keyframes foundry-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+.foundry-loader { animation: foundry-fade-in 0.2s ease-out 0.12s both; }
+@keyframes foundry-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.foundry-loader-ring { animation: foundry-spin 1.1s linear infinite; }
+.foundry-loader-logo { animation: foundry-pulse 1.8s ease-in-out infinite; }
+.foundry-loader-glow { animation: foundry-glow 1.8s ease-in-out infinite; }
+.foundry-loader-bar::after { content: ''; position: absolute; inset: 0; width: 40%; border-radius: 9999px; background: rgb(var(--color-brand, 184 134 11)); animation: foundry-slide 1.3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .foundry-loader-ring, .foundry-loader-logo, .foundry-loader-glow, .foundry-loader-bar::after { animation: none; }
+}

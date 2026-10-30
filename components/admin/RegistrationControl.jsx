@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { Check, Loader2, Tag as TagIcon, Undo2, ArrowRight } from 'lucide-react';
 import { effectivePrice, parsePriceInput } from '../../lib/pricing';
 import { formatNaira } from '../../lib/courses';
+import { SEAT_LIMIT } from '../../lib/seat-limit';
 import { updateCourseSettings } from '../../app/admin/actions';
 import { TAGS, TAG_OPTIONS, getAvailability, describeClosure, isoToReopenDateInput } from '../../lib/course-status';
 
@@ -34,17 +35,18 @@ export default function RegistrationControl({ course, settings, seats, defaults 
   const [tag, setTag] = useState(settings.tag || 'none');
   const [reopenDate, setReopenDate] = useState(isoToReopenDateInput(settings.reopen_at));
   const [furtherNotice, setFurtherNotice] = useState(!settings.reopen_at);
+  const [autoClose, setAutoClose] = useState(settings.auto_close !== false);
   const [isPending, startTransition] = useTransition();
 
   const closing = !open || TAGS[tag].closes;
 
   // What is stored right now vs what is on screen: drives the "unsaved / saved" indicator.
   const snap = (v) => ({
-    open: v.open, tag: v.tag, priceNow: String(v.priceNow).trim(), priceWas: String(v.priceWas || '').trim(),
+    open: v.open, tag: v.tag, autoClose: v.autoClose, priceNow: String(v.priceNow).trim(), priceWas: String(v.priceWas || '').trim(),
     reopen: v.closing ? (v.furtherNotice ? 'further notice' : v.reopenDate || '') : ''
   });
-  const current = snap({ open, tag, priceNow, priceWas, closing, furtherNotice, reopenDate });
-  const [base, setBase] = useState(() => snap({ open: settings.registration_open, tag: settings.tag || 'none', priceNow: cur.now, priceWas: cur.was, closing: !settings.registration_open || TAGS[settings.tag || 'none'].closes, furtherNotice: !settings.reopen_at, reopenDate: isoToReopenDateInput(settings.reopen_at) }));
+  const current = snap({ open, tag, priceNow, priceWas, closing, furtherNotice, reopenDate, autoClose });
+  const [base, setBase] = useState(() => snap({ autoClose: settings.auto_close !== false, open: settings.registration_open, tag: settings.tag || 'none', priceNow: cur.now, priceWas: cur.was, closing: !settings.registration_open || TAGS[settings.tag || 'none'].closes, furtherNotice: !settings.reopen_at, reopenDate: isoToReopenDateInput(settings.reopen_at) }));
   const [savedAt, setSavedAt] = useState(null);
   const [error, setError] = useState({ text: '', key: '' });
   const key = JSON.stringify(current);
@@ -57,6 +59,7 @@ export default function RegistrationControl({ course, settings, seats, defaults 
   if (current.tag !== base.tag) changes.push(['Status tag', tagName(base.tag), tagName(current.tag)]);
   if (current.priceNow !== base.priceNow) changes.push(['Price', money(base.priceNow), money(current.priceNow)]);
   if (current.priceWas !== base.priceWas) changes.push(['Crossed-out price', money(base.priceWas), money(current.priceWas)]);
+  if (current.autoClose !== base.autoClose) changes.push(['Auto-close', base.autoClose ? 'On' : 'Off', current.autoClose ? 'On' : 'Off']);
   if (current.reopen !== base.reopen) changes.push(['Reopens', base.reopen || 'not set', current.reopen || 'not set']);
   const dirty = changes.length > 0;
   const shownError = error.key === key ? error.text : '';
@@ -64,7 +67,9 @@ export default function RegistrationControl({ course, settings, seats, defaults 
   const preview = getAvailability({
     registration_open: open,
     tag,
-    reopen_at: closing && !furtherNotice && reopenDate ? `${reopenDate}T00:00:00+01:00` : null
+    reopen_at: closing && !furtherNotice && reopenDate ? `${reopenDate}T00:00:00+01:00` : null,
+    auto_close: autoClose,
+    auto_closed: autoClose ? settings.auto_closed : null
   });
   const saved = getAvailability(settings);
 
@@ -76,7 +81,8 @@ export default function RegistrationControl({ course, settings, seats, defaults 
         registrationOpen: open,
         tag,
         reopenDate: closing && !furtherNotice ? reopenDate : '',
-        untilFurtherNotice: closing && furtherNotice
+        untilFurtherNotice: closing && furtherNotice,
+        ...(current.autoClose !== base.autoClose ? { autoClose } : {})
       });
       if (res?.error) return setError({ text: res.error, key });
       let next = current;
@@ -96,6 +102,7 @@ export default function RegistrationControl({ course, settings, seats, defaults 
     setTag(base.tag);
     setPriceNow(base.priceNow);
     setPriceWas(base.priceWas);
+    setAutoClose(base.autoClose);
     setFurtherNotice(base.reopen === 'further notice' || !base.reopen);
     setReopenDate(base.reopen && base.reopen !== 'further notice' ? base.reopen : '');
   }
@@ -212,6 +219,36 @@ export default function RegistrationControl({ course, settings, seats, defaults 
           <p className="mt-2 text-xs text-inkdim">On the chosen date (Lagos time) registration opens by itself.</p>
         </div>
       )}
+
+      <div className={`mt-5 rounded-lg border p-3 text-sm ${settings.auto_closed && autoClose ? 'border-red-200 bg-red-50' : 'border-line bg-surfaceMuted'}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-ink">Auto-close for this course</p>
+            <p className="text-xs text-inkdim">When ON, registration shows &ldquo;All seats taken&rdquo; once {SEAT_LIMIT} students have paid, or when a class timer for this course has started. Turn it OFF to control this course by hand.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoClose}
+            aria-label={`Auto-close for ${course.name}`}
+            onClick={() => setAutoClose((v) => !v)}
+            disabled={isPending}
+            className={`relative inline-flex h-7 w-14 flex-shrink-0 items-center rounded-full border transition ${autoClose ? 'border-emerald-600 bg-emerald-600' : 'border-line bg-surfaceMuted'}`}
+          >
+            <span className={`absolute left-1 text-[10px] font-bold uppercase text-white transition-opacity ${autoClose ? 'opacity-100' : 'opacity-0'}`}>On</span>
+            <span className={`absolute right-1.5 text-[10px] font-bold uppercase text-inkdim transition-opacity ${autoClose ? 'opacity-0' : 'opacity-100'}`}>Off</span>
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${autoClose ? 'translate-x-8' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-inkdim">
+          Seats taken: <span className="font-semibold text-ink">{settings.seats_taken ?? seats.paid} of {SEAT_LIMIT}</span>
+          {settings.auto_closed && autoClose && (
+            <span className="ml-2 font-semibold text-red-700">
+              Closed automatically: {settings.auto_closed === 'full' ? 'the cohort is full.' : 'the class timer has started.'}
+            </span>
+          )}
+        </p>
+      </div>
 
       <div className="mt-5 rounded-lg border border-dashed border-line p-3 text-xs text-inkdim">
         <span className="font-medium text-ink">Students will see: </span>

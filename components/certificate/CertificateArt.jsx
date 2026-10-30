@@ -1,5 +1,6 @@
 import { forwardRef } from 'react';
 import { SIGNATURE_DATA_URI } from '../../lib/certificate-signature';
+import { qrMatrix, qrPath } from '../../lib/qr';
 
 // The certificate itself, drawn as one self-contained SVG (1536 x 1024) so
 // it looks identical on screen and in the downloaded PNG. No external
@@ -66,6 +67,23 @@ const Icon = ({ y, children, line1, line2 }) => (
     <text x="72" y="42" fill="#f3f3f3" fontSize="19" fontFamily={SANS}>{line2}</text>
   </g>
 );
+
+// Scan-to-verify code, drawn as plain SVG shapes so it survives the PNG download.
+function VerifyQr({ url, x, y, size }) {
+  let m;
+  try { m = qrMatrix(url); } catch { return null; }
+  const pad = 14;
+  const scale = (size - pad * 2) / m.length;
+  return (
+    <g>
+      <rect x={x} y={y} width={size} height={size} rx="10" fill="#ffffff" />
+      <g transform={`translate(${x + pad} ${y + pad}) scale(${scale})`}>
+        <path d={qrPath(m)} fill="#0c0e10" shapeRendering="crispEdges" />
+      </g>
+      <text x={x + size / 2} y={y + size + 26} textAnchor="middle" fontSize="15" fill="#f3f3f3" fontFamily={SANS} letterSpacing="3">SCAN TO VERIFY</text>
+    </g>
+  );
+}
 
 const CertificateArt = forwardRef(function CertificateArt({ data = null, className = '' }, ref) {
   const name = data?.name || 'Student Name';
@@ -143,10 +161,12 @@ const CertificateArt = forwardRef(function CertificateArt({ data = null, classNa
       <line x1="1006" y1="837" x2="1248" y2="837" stroke={GOLD} strokeWidth="2" />
       <text x="1127" y="870" textAnchor="middle" fontSize="22" fill="#f3f3f3" fontFamily={SANS}>Date</text>
 
+      {data?.verifyUrl && <VerifyQr url={data.verifyUrl} x={1316} y={690} size={150} />}
+
       {/* certificate id (bottom-right corner) */}
       <text x="1470" y="918" textAnchor="end" fontSize="14" fill={GOLD} fontFamily={SANS} letterSpacing="3">CERTIFICATE ID</text>
       <text x="1470" y="946" textAnchor="end" fontSize="26" fontWeight="700" fill="#ffffff" fontFamily='ui-monospace, "SF Mono", Menlo, Consolas, monospace' letterSpacing="2">{code}</text>
-      <text x="1470" y="968" textAnchor="end" fontSize="13" fill="#bdbdbd" fontFamily={SANS}>Verify this certificate on the Foundry website</text>
+      <text x="1470" y="968" textAnchor="end" fontSize="13" fill="#bdbdbd" fontFamily={SANS}>Scan the code or verify on the Foundry website</text>
     </svg>
   );
 });

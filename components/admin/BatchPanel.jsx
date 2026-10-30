@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Play, Pause, RotateCcw, Square, Pencil, Check, ChevronDown, ChevronUp, Presentation, X, UserPlus } from 'lucide-react';
-import { updateBatchDetails, batchTimerAction, assignTeacherToBatch } from '../../app/admin/actions';
+import { Play, Pause, RotateCcw, RotateCw, Eraser, Square, Pencil, Check, ChevronDown, ChevronUp, Presentation, X, UserPlus } from 'lucide-react';
+import { updateBatchDetails, batchTimerAction, superResetBatch, assignTeacherToBatch } from '../../app/admin/actions';
 import { getTimerState } from '../../lib/batch-timer';
 import { PAYMENT_STATUSES } from '../../lib/payments';
 import { StatusPill, CountdownBoxes, useServerClock } from '../BatchTimer';
@@ -63,6 +63,11 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
       message: `The 9-week countdown for ${batch.label} starts again from the beginning.`,
       confirmLabel: 'Restart'
     },
+    reset: {
+      title: 'Reset the timer?',
+      message: `The timer for ${batch.label} goes back to its starting state and only the Start button will show. Students stay in the batch.`,
+      confirmLabel: 'Reset timer'
+    },
     end: {
       title: 'End class for this batch?',
       message: `Students in ${batch.label} will see the class as ended.`,
@@ -75,6 +80,21 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
     const ask = TIMER_CONFIRMS[action];
     if (ask && !(await confirm(ask))) return;
     run(batchTimerAction, batch.id, action);
+  }
+
+  async function confirmSuperReset() {
+    const n = students.length;
+    const ok = await confirm({
+      title: `Super reset ${batch.label}?`,
+      message: `This resets the timer AND removes ${n} student${n === 1 ? '' : 's'} from this batch, so it can take new registrations. Their accounts and other courses are not touched, but they lose access to this batch. This cannot be undone.`,
+      confirmLabel: 'Super reset',
+      tone: 'danger'
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const res = await superResetBatch(batch.id);
+      setStatus(res?.error ? { text: res.error, kind: 'error' } : { text: res.removed ? `Batch reset. ${res.removed} student${res.removed === 1 ? '' : 's'} removed.` : 'Batch reset.', kind: res?.error ? 'error' : 'ok' });
+    });
   }
 
   // Payment breakdown for THIS batch -- the counts double as filter
@@ -235,6 +255,24 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
               <RotateCcw className="h-3.5 w-3.5" /> Restart
             </button>
           )}
+          {timer.status !== 'not_started' && (
+            <button
+              onClick={() => confirmTimer('reset')}
+              disabled={isPending}
+              className={`${btn} hover:border-brand/40 hover:text-brand`}
+              title="Back to the starting state: only Start shows"
+            >
+              <RotateCw className="h-3.5 w-3.5" /> Reset
+            </button>
+          )}
+          <button
+            onClick={confirmSuperReset}
+            disabled={isPending}
+            className={`${btn} border-red-200 text-red-600 hover:border-red-400 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10`}
+            title="Reset the timer and remove every student from this batch"
+          >
+            <Eraser className="h-3.5 w-3.5" /> Super reset
+          </button>
           {(timer.status === 'running' || timer.status === 'paused') && (
             <button
               onClick={() => confirmTimer('end')}
@@ -307,7 +345,7 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
         )}
       </div>
 
-      {status.text && <p className="mt-3 text-sm text-red-600">{status.text}</p>}
+      {status.text && <p className={`mt-3 text-sm ${status.kind === 'ok' ? 'text-emerald-600' : 'text-red-600'}`} role="status">{status.text}</p>}
     </div>
   );
 }

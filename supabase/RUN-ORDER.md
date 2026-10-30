@@ -8,6 +8,8 @@ Run these in the Supabase SQL editor. Every file is safe to re-run.
 
 **Already ran everything up to "certificate names"?** Run `3-pricing-and-contacts.sql`, then `4-event-center.sql`.
 
+**Already ran step 6?** Run **only** `7-auto-close.sql`.
+
 **Already ran step 5?** Run **only** `6-names-and-installs.sql`.
 
 **Already ran step 4?** Run `5-payment-intents.sql`, then `6-names-and-installs.sql`.
@@ -23,3 +25,4 @@ Run these in the Supabase SQL editor. Every file is safe to re-run.
 | `4-event-center.sql` | Contact details for the Event Center section (safe even if step 3 already allows it) |
 | `5-payment-intents.sql` | Server-started Paystack payments (the price is fixed by the server, and the webhook uses it) |
 | `6-names-and-installs.sql` | The name a student chose is what the site shows (Google name kept as an alternative); per-course installation checklist |
+| `7-auto-close.sql` | Registration closes automatically at 50 seats or when the class timer starts (per-course switch) |

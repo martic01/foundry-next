@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { CalendarDays, Hourglass, Users, ShieldCheck, Sparkles } from 'lucide-react';
 import CohortCarousel from '../components/CohortCarousel';
 import CourseCard from '../components/CourseCard';
@@ -11,7 +12,7 @@ import WorkspaceSection from '../components/WorkspaceSection';
 import EventSection from '../components/EventSection';
 import { getAvailability } from '../lib/course-status';
 import { FAQS } from '../components/MarketplaceSections';
-import { SITE_URL, SITE_NAME, ALT_NAME, SITE_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, pageMeta, jsonLd } from '../lib/seo';
+import { SITE_URL, SITE_NAME, BRAND_VARIANTS, SITE_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, pageMeta, jsonLd } from '../lib/seo';
 import { normalizePhone } from '../lib/site-contacts';
 
 export const metadata = pageMeta({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: '/', keywords: SITE_KEYWORDS });
@@ -22,7 +23,7 @@ function structuredData(settings, contacts) {
     '@type': 'EducationalOrganization',
     '@id': `${SITE_URL}/#organization`,
     name: SITE_NAME,
-    alternateName: ALT_NAME,
+    alternateName: BRAND_VARIANTS,
     url: SITE_URL,
     logo: `${SITE_URL}/icon.png`,
     image: `${SITE_URL}/og-image.png`,
@@ -37,7 +38,7 @@ function structuredData(settings, contacts) {
       name: c.name,
       description: `${c.tagline} You will learn: ${c.learn.join('; ')}.`,
       provider: { '@id': `${SITE_URL}/#organization` },
-      url: `${SITE_URL}/register`,
+      url: `${SITE_URL}/courses/${c.key}`,
       image: `${SITE_URL}${c.image}`,
       inLanguage: 'en',
       educationalCredentialAwarded: 'Certificate of completion',
@@ -48,7 +49,7 @@ function structuredData(settings, contacts) {
     '@context': 'https://schema.org',
     '@graph': [
       org,
-      { '@type': 'WebSite', '@id': `${SITE_URL}/#website`, url: SITE_URL, name: SITE_NAME, alternateName: ALT_NAME, description: SITE_DESCRIPTION, inLanguage: 'en', publisher: { '@id': `${SITE_URL}/#organization` } },
+      { '@type': 'WebSite', '@id': `${SITE_URL}/#website`, url: SITE_URL, name: SITE_NAME, alternateName: BRAND_VARIANTS, description: SITE_DESCRIPTION, inLanguage: 'en', publisher: { '@id': `${SITE_URL}/#organization` } },
       { '@type': 'FAQPage', mainEntity: FAQS.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) },
       ...[['Workspace', 'Co-working desks, a meeting room and a private virtual office'], ['Event Center', 'An open-air celebration space for birthdays, Valentine dinners and mini events, for up to 30 guests']].map(([n, d], i) => ({
         '@type': 'LocalBusiness', '@id': `${SITE_URL}/#${i ? 'events' : 'workspace'}`, name: `${SITE_NAME} ${n}`, description: d, url: `${SITE_URL}/#${i ? 'events' : 'workspace'}`, image: `${SITE_URL}/og-image.png`,
@@ -92,6 +93,13 @@ export default async function FoundryHome() {
               fundamentals to shipping full React applications, each with live
               sessions, real projects, and feedback from an actual instructor —
               not just an AI.
+            </p>
+            <p className="mt-3 max-w-2xl text-sm text-inkdim">
+              The Foundry (also searched as <strong>marFoundry</strong>) is a coding school in Nigeria
+              where you can learn coding, programming and AI. Explore the courses:{' '}
+              {Object.values(COURSES).map((c, i, a) => (
+                <span key={c.key}><Link href={`/courses/${c.key}`} className="font-medium text-brand hover:underline">{c.name}</Link>{i < a.length - 1 ? ', ' : '.'}</span>
+              ))}
             </p>
           </div>
           {/* One single Robot3D instance, repositioned by breakpoint --

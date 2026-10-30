@@ -192,6 +192,7 @@ export async function setBlocked(profileId, blocked) {
 // ---------- Helpers shared by the actions below ----------
 
 function refreshEverything() {
+  revalidateTag(COURSE_SETTINGS_TAG); // seat counts and class clocks feed the auto-close
   // 'layout' revalidates every page nested under that layout in one
   // call. Admin pages show counts/lists that depend on all of this, the
   // student portal needs refreshing too, and the public pages show
@@ -451,6 +452,46 @@ export async function batchTimerAction(batchId, action) {
 
   refreshEverything();
   return { ok: true };
+}
+
+// Super reset: the batch goes back to a brand-new state. The timer returns to
+// "not started" and every student is taken out of it (their account and other
+// courses are untouched; admins are never removed), so the batch can fill up
+// with new registrations. Name, seats and start date are kept.
+export async function superResetBatch(batchId) {
+  const authCheck = await requireAdmin();
+  if (!authCheck.ok) return { error: authCheck.error };
+  if (typeof batchId !== 'string' || !UUID_RE.test(batchId)) return { error: 'Unknown batch.' };
+
+  const supabase = await createClient();
+  const { data: batch } = await supabase.from('batches').select('id').eq('id', batchId).maybeSingle();
+  if (!batch) return { error: 'Batch not found.' };
+
+  const { data: regs, error: readError } = await supabase.from('registrations').select('id, user_id').eq('batch_id', batchId);
+  if (readError) return { error: dbError(readError) };
+  const userIds = [...new Set((regs || []).map((r) => r.user_id))];
+  let adminIds = new Set();
+  if (userIds.length) {
+    const { data: admins } = await supabase.from('profiles').select('id').in('id', userIds).eq('role', 'admin');
+    adminIds = new Set((admins || []).map((a) => a.id));
+  }
+  const removeIds = (regs || []).filter((r) => !adminIds.has(r.user_id)).map((r) => r.id);
+
+  const { error: timerError } = await supabase
+    .from('batches')
+    .update({ class_status: 'not_started', timer_elapsed_seconds: 0, timer_started_at: null, timer_ended_at: null })
+    .eq('id', batchId);
+  if (timerError) return { error: dbError(timerError) };
+
+  if (removeIds.length) {
+    const { error } = await supabase.from('registrations').update({ status: 'removed', batch_id: null }).in('id', removeIds);
+    if (error) return { error: `The timer was reset but students couldn\u2019t be removed: ${dbError(error)}` };
+  }
+
+  refreshEverything();
+  revalidatePath('/admin', 'layout');
+  revalidatePath('/dashboard', 'layout');
+  return { ok: true, removed: removeIds.length, keptAdmins: adminIds.size };
 }
 
 // Moves a paid student to another batch of the SAME course, if it has
@@ -1048,6 +1089,7 @@ export async function updateCourseSettings(courseKey, settings) {
     reopen_at: reopenAt,
     registration_closed_at: closedAt,
     ...priceFields,
+    ...(typeof settings?.autoClose === 'boolean' ? { auto_close: settings.autoClose } : {}),
     updated_at: new Date().toISOString(),
     updated_by: user?.id
   });
