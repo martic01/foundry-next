@@ -8,7 +8,7 @@ export default function manifest() {
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    background_color: '#0f0f14', // the colour of the splash screen while the installed app starts
+    background_color: '#000000', // the colour of the splash screen while the installed app starts
     theme_color: '#b8860b',
     categories: ['education', 'productivity'],
     icons: [
