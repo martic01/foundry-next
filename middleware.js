@@ -1,5 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
+import { sessionIdFromToken } from './lib/session-id';
+
+const HOME = { admin: '/admin', teacher: '/teacher', student: '/dashboard' };
 
 export async function middleware(request) {
   // Tell Server Components which page is being requested (lib/supabase/
@@ -49,11 +52,37 @@ export async function middleware(request) {
     return NextResponse.redirect(new URL(loginPath, request.url));
   }
 
-  // Role check (student trying /admin) happens in the page itself via
-  // RLS-backed queries, not here -- middleware only needs to know
-  // "logged in or not" to redirect; the real access boundary is Postgres
-  // Row Level Security, which can't be bypassed by anything reaching this
-  // far in the first place.
+  if (!user || !(isAdminRoute || isDashboardRoute)) return response;
+
+  // From here: a signed-in person on a portal page. Two checks, both fail OPEN
+  // (a database hiccup never locks anyone out; Postgres RLS is the real wall).
+  try {
+    // 1. Which role are they? Send them to THEIR OWN home instead of a dead end
+    //    (a student on /admin goes to /dashboard, and so on). Every home accepts
+    //    its own role, so these redirects can never bounce back and forth.
+    let { data: prof, error: profError } = await supabase.from('profiles').select('role, active_session').eq('id', user.id).maybeSingle();
+    let hasSessionColumn = !profError;
+    if (profError) ({ data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle());
+
+    // 2. One device at a time: only the most recent sign-in may use the account.
+    if (prof && hasSessionColumn) {
+      const { data: { session } } = await supabase.auth.getSession();
+      const sid = sessionIdFromToken(session?.access_token);
+      if (sid && prof.active_session && prof.active_session !== sid) {
+        const to = isAdminRoute ? '/admin/login' : '/login';
+        return NextResponse.redirect(new URL(`/auth/signed-out?to=${encodeURIComponent(to)}`, request.url));
+      }
+      if (sid && !prof.active_session) await supabase.rpc('register_session', { p_session: sid, p_only_if_empty: true });
+    }
+
+    if (prof?.role) {
+      const role = prof.role === 'admin' || prof.role === 'teacher' ? prof.role : 'student';
+      const wanted = isAdminRoute ? 'admin' : path.startsWith('/teacher') ? 'teacher' : 'student';
+      if (role !== wanted) return NextResponse.redirect(new URL(HOME[role], request.url));
+    }
+  } catch {
+    /* network trouble: let the page decide */
+  }
   return response;
 }
 

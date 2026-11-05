@@ -28,6 +28,9 @@ export default async function AdminLayout({ children }) {
             mistake, promote your account with the SQL note at the bottom
             of supabase/schema.sql.
           </p>
+          <form action={signOutAction} className="mt-5">
+            <button type="submit" className="cta-btn-outline w-full justify-center">Sign out</button>
+          </form>
         </div>
       </main>
     );

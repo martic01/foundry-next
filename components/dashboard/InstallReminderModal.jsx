@@ -26,6 +26,13 @@ export default function InstallReminderModal({ plan }) {
         <h2 id="install-title" className="mb-1 font-display text-lg font-extrabold text-ink">Get ready for class</h2>
         <p className="mb-4 text-sm text-inkdim">You <span className="font-semibold text-ink">must</span> do these before your first class, or you won&apos;t be able to follow along.</p>
 
+        <div className="mb-4 rounded-lg border border-brand/40 bg-brand-light p-3 text-sm text-ink">
+          <p className="mb-1 font-semibold">Important: tick the boxes</p>
+          <p className="text-inkdim">
+            When you finish installing a tool, open the Installation page and <span className="font-semibold text-ink">tick the checkbox next to it</span>. Do the same after you join the WhatsApp group. This is how your teacher knows you are ready. If you don&apos;t tick them, you will show as not installed.
+          </p>
+        </div>
+
         {courses.map((c) => (
           <div key={c.key} className="mb-3 rounded-lg border border-line bg-surfaceMuted p-3">
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-inkdim">{c.name}: install</p>
@@ -41,6 +48,7 @@ export default function InstallReminderModal({ plan }) {
           <div className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3">
             <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-900"><MessageCircle className="h-4 w-4" /> Join the class WhatsApp group</p>
             <a href={WHATSAPP_GROUP_URL} target="_blank" rel="noopener noreferrer" className="cta-btn w-full justify-center">Join WhatsApp group</a>
+            <p className="mt-2 text-xs text-emerald-900">After you join, tick <strong>&ldquo;I&apos;ve joined the group&rdquo;</strong> on the Installation page.</p>
           </div>
         )}
 

@@ -8,7 +8,7 @@ import GoogleIcon from './icons/GoogleIcon';
 // Google is the only sign-in method anywhere in this app -- it handles
 // both the credential and proving the email is real, so there's no
 // password anywhere here for this app to store, hash, or leak.
-export default function GoogleSignInPage({ title, subtitle, redirectTo }) {
+export default function GoogleSignInPage({ title, subtitle, redirectTo, notice = '' }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -34,6 +34,7 @@ export default function GoogleSignInPage({ title, subtitle, redirectTo }) {
         <h1 className="mb-1 font-display text-xl font-extrabold text-ink">{title}</h1>
         <p className="mb-6 text-sm text-inkdim">{subtitle}</p>
 
+        {notice && <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-left text-sm text-amber-900" role="status">{notice}</p>}
         <button onClick={handleGoogleSignIn} disabled={loading} className="cta-btn w-full justify-center">
           {loading ? (
             <>

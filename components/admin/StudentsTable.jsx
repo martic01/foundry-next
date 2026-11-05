@@ -6,6 +6,8 @@ import { setBlocked, adminDeleteStudent, moveStudentToBatch, setRegistrationBloc
 import { useDialog } from '../ui/DialogProvider';
 import SourceBadge from './SourceBadge';
 import PaymentChip from './PaymentChip';
+import StudentTags from './StudentTags';
+import TagFilters, { NO_TAG_FILTER, tagFilterActive, matchesTagFilter } from './TagFilters';
 import { PAYMENT_STATUSES, REGISTRATION_SOURCES } from '../../lib/payments';
 
 export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
@@ -16,6 +18,7 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
   const [sort, setSort] = useState('name');
   const [pay, setPay] = useState('all'); // payment-status filter
   const [src, setSrc] = useState('all'); // Manual / Paystack filter
+  const [tagF, setTagF] = useState(NO_TAG_FILTER); // installed / WhatsApp / terms
 
   function toggleBlocked(profileId, blocked) {
     startTransition(async () => {
@@ -85,6 +88,7 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
     const q = query.trim().toLowerCase();
     const filtered = students.filter((s) => {
       if (q && !`${s.full_name || ''} ${s.google_name || ''} ${s.email || ''}`.toLowerCase().includes(q)) return false;
+      if (!matchesTagFilter(s.courses.length ? s.tags : null, tagF)) return false;
       if (pay === 'all' && src === 'all') return true; // incl. students with no registration yet
       return s.courses.some(regMatches);
     });
@@ -95,7 +99,7 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
       ? [...filtered].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       : filtered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [students, query, sort, pay, src]);
+  }, [students, query, sort, pay, src, tagF]);
 
   // Counts for the filter chips: how many STUDENTS have at least one
   // registration in each payment state (a student can appear in several).
@@ -108,7 +112,7 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
   }, [students]);
 
   const registrationFilterOn = pay !== 'all' || src !== 'all';
-  const filtersActive = registrationFilterOn || query.trim() !== '';
+  const filtersActive = registrationFilterOn || tagFilterActive(tagF) || query.trim() !== '';
 
   if (!students.length) {
     return <p className="p-4 text-sm text-inkdim">No students yet.</p>;
@@ -157,6 +161,7 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
           ))}
         </select>
       </div>
+      <TagFilters value={tagF} onChange={setTagF} className="mb-3" />
       {filtersActive && (
         <p className="mb-2 text-xs text-inkdim">
           {visible.length} of {students.length} match{' '}
@@ -166,6 +171,7 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
               setQuery('');
               setPay('all');
               setSrc('all');
+              setTagF(NO_TAG_FILTER);
             }}
             className="font-medium text-brand hover:underline"
           >
@@ -190,6 +196,7 @@ export default function StudentsTable({ students, batchChoicesByCourse = {} }) {
                 )}
               </div>
               <p className="truncate text-xs text-inkdim">{s.email}</p>
+              {s.courses.length > 0 && <div className="mt-1.5"><StudentTags tags={s.tags} /></div>}
               {s.courses.length ? (
                 <ul className="mt-1 flex flex-col gap-1">
                   {s.courses.map((c) => (

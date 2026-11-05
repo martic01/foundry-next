@@ -3,6 +3,7 @@ import { COURSES } from '../../../lib/courses';
 import { getCourseSettings } from '../../../lib/course-settings';
 import { effectivePrice } from '../../../lib/pricing';
 import { getSource, getPayment } from '../../../lib/payments';
+import { studentTags } from '../../../lib/student-status';
 import StudentsTable from '../../../components/admin/StudentsTable';
 import AddStudentForm from '../../../components/admin/AddStudentForm';
 
@@ -15,14 +16,14 @@ export default async function StudentsPage() {
 
   const regBase = 'id, user_id, course, batch_id, paystack_reference, amount_kobo, batches(label)';
   const [{ data: profilesA, error: profilesErr }, { data: allBatches }, { data: assignments }, { data: teacherRows }, withPayment] = await Promise.all([
-    supabase.from('profiles').select('id, full_name, google_name, email, blocked, created_at').eq('role', 'student').order('full_name'),
+    supabase.from('profiles').select('*').eq('role', 'student').order('full_name'),
     supabase.from('batches').select('id, course, label, capacity').order('created_at'),
     supabase.from('batch_teachers').select('batch_id, teacher_id'),
     supabase.from('profiles').select('id, full_name').eq('role', 'teacher'),
     supabase.from('registrations').select(`${regBase}, amount_due_kobo, payment_status, payment_method`).eq('status', 'paid')
   ]);
   // supabase/6-names-and-installs.sql not run yet? Load without the Gmail-name column.
-  const profiles = profilesErr ? (await supabase.from('profiles').select('id, full_name, email, blocked, created_at').eq('role', 'student').order('full_name')).data : profilesA;
+  const profiles = profilesA;
   // Payment-status migration not run yet? Fall back to the old columns so
   // every student still lists (all then read as paid).
   const registrations = withPayment.error
@@ -73,10 +74,15 @@ export default async function StudentsPage() {
     });
   });
 
-  const students = (profiles || []).map((p) => ({
-    ...p,
-    courses: coursesByUser[p.id] || []
-  }));
+  const students = (profiles || []).map((p) => {
+    const courses = coursesByUser[p.id] || [];
+    return {
+      // Only what the table needs (this crosses to a client component).
+      id: p.id, full_name: p.full_name, google_name: p.google_name, email: p.email, blocked: p.blocked, created_at: p.created_at,
+      courses,
+      tags: studentTags(p, courses.map((c) => c.courseKey), { manual: courses.some((c) => c.source === 'manual') })
+    };
+  });
 
   return (
     <div>

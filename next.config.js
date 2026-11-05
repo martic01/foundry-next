@@ -17,7 +17,9 @@ const securityHeaders = [
   // violations, rename this header to Content-Security-Policy to enforce
   // it (and then drop 'unsafe-eval' unless something needs it).
   {
-    key: 'Content-Security-Policy-Report-Only',
+    // Set CSP_ENFORCE=1 in Vercel (then redeploy) to ENFORCE this policy; remove it to go
+    // back to report-only. No code change needed either way.
+    key: process.env.CSP_ENFORCE === '1' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://checkout.paystack.com",

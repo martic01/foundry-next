@@ -9,6 +9,8 @@ import { COURSES } from '../../lib/courses';
 import NotificationHost from '../../components/dashboard/NotificationHost';
 import { NOINDEX } from '../../lib/seo';
 import { installPlan } from '../../lib/installs';
+import { isAdminAdded } from '../../lib/payments';
+import TermsModal from '../../components/dashboard/TermsModal';
 
 // This layout runs for EVERY /dashboard/* page, so the auth/role/blocked
 // checks live here now instead of being repeated at the top of each page
@@ -28,7 +30,7 @@ export default async function DashboardLayout({ children }) {
     getProfile(user.id),
     supabase
       .from('registrations')
-      .select('course, batches(id, label, start_date, class_status, timer_total_seconds, timer_elapsed_seconds, timer_started_at)')
+      .select('course, paystack_reference, batches(id, label, start_date, class_status, timer_total_seconds, timer_elapsed_seconds, timer_started_at)')
       .eq('user_id', user.id)
       .eq('status', 'paid'),
     supabase.from('certificates').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
@@ -69,6 +71,10 @@ export default async function DashboardLayout({ children }) {
     .filter((r) => r.batches?.id)
     .map((r) => ({ ...r.batches, courseName: COURSES[r.course]?.name || r.course }));
 
+  // Students the admin registered by hand must accept the terms. Shown only once the
+  // column exists (supabase/8-terms.sql), so nothing breaks before that is run.
+  const needsTerms = !!profile && 'terms_accepted_at' in profile && !profile.terms_accepted_at && (bannerRegs || []).some(isAdminAdded);
+
   const navItems = [
     { href: '/dashboard', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" />, exact: true },
     { href: '/dashboard/courses', label: 'My courses', icon: <BookOpen className="h-4 w-4" /> },
@@ -89,6 +95,7 @@ export default async function DashboardLayout({ children }) {
       logoutAction={signOutAction}
     >
       <ClassStatusBanner batches={bannerBatches} serverNow={Date.now()} />
+      {needsTerms ? <TermsModal /> : null}
       {children}
       <NotificationHost userId={user.id} />
     </PortalShell>

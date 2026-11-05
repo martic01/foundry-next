@@ -3,6 +3,7 @@ import { createClient } from '../../../lib/supabase/server';
 import { createAdminClient } from '../../../lib/supabase/admin';
 import { syncSignInProfile } from '../../../lib/profile-names';
 import { absorbShellAccounts, claimTeacherShells } from '../../../lib/accounts';
+import { sessionIdFromToken } from '../../../lib/session-id';
 
 // Google (via Supabase's built-in provider) redirects here with a `code`
 // query param after the person signs in. Exchanging it for a session is
@@ -55,7 +56,14 @@ export async function GET(request) {
         const { error: profileError } = await syncSignInProfile(admin, user);
         if (profileError) {
           console.error('profile upsert on sign-in failed:', profileError);
-        } else if (user.email_confirmed_at) {
+        } else {
+          // This device is now THE session for the account; any other device that
+          // was signed in is signed out the next time it opens a portal page.
+          // (Needs supabase/9-single-session.sql; a missing column is ignored.)
+          const sid = sessionIdFromToken(data?.session?.access_token);
+          if (sid) await admin.from('profiles').update({ active_session: sid }).eq('id', user.id).then(() => {}, () => {});
+        }
+        if (!profileError && user.email_confirmed_at) {
           // If an admin enrolled this email BEFORE the student first
           // signed in, that registration lives on an account the student
           // has never used (Supabase doesn't always attach a Google

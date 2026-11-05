@@ -181,7 +181,7 @@ function DetailsStep({ course, onDone, onPriceChange }) {
       const res = await fetch('/api/payments/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courseKey: course.key, dob, specsAgreed, expectedPrice: course.priceNow })
+        body: JSON.stringify({ courseKey: course.key, dob, specsAgreed, termsAgreed: agreed, expectedPrice: course.priceNow })
       });
       init = await res.json();
       if (res.status === 409 && init.error === 'price_changed') {

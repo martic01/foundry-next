@@ -6,6 +6,7 @@ import { removeFromBatch, setRegistrationBlocked, moveStudentToBatch, deleteRegi
 import { useDialog } from '../ui/DialogProvider';
 import SourceBadge from './SourceBadge';
 import PaymentChip from './PaymentChip';
+import StudentTags from './StudentTags';
 
 // One student inside a batch (or in the "unassigned" list). Every button
 // here affects ONLY this course/batch -- block them here, move them,
@@ -93,6 +94,7 @@ export default function BatchStudentRow({ student: s, otherBatches, selected, on
           {s.email} · Age {s.age}
           {s.payment?.detail ? ` \u00b7 ${s.payment.detail}` : ''}
         </p>
+        <div className="mt-1"><StudentTags tags={s.tags} /></div>
         </div>
       </div>
       <div className="flex flex-shrink-0 flex-wrap items-center gap-2">

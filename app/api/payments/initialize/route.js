@@ -13,10 +13,11 @@ import { effectivePrice } from '../../../../lib/pricing';
 export async function POST(request) {
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid request.' }, { status: 400 }); }
-  const { courseKey, dob, specsAgreed, expectedPrice } = body || {};
+  const { courseKey, dob, specsAgreed, termsAgreed, expectedPrice } = body || {};
   const course = getCourse(courseKey);
   if (!course || typeof dob !== 'string' || dob.length > 20) return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   if (course.contactOnly) return NextResponse.json({ error: 'This course is by enquiry only. Please contact us on WhatsApp or email.' }, { status: 400 });
+  if (termsAgreed !== true) return NextResponse.json({ error: 'Please agree to the Terms & Policy before paying.' }, { status: 400 });
   if (!specsAgreed) return NextResponse.json({ error: 'Please confirm your laptop meets the minimum specs before paying.' }, { status: 400 });
 
   const session = await createSessionClient();

@@ -93,3 +93,43 @@ Scope: all code added since the first review (server-started Paystack payments, 
 5. **Two-factor sign-in** on the Google account used for admin, and on Supabase, Vercel, Paystack, Cloudinary, EmailJS and GitHub.
 6. `course_settings` and `site_settings` are readable by anyone with the public key and include an `updated_by` column (the admin's user id). Not sensitive on its own, but you can remove the column from the public policy later.
 7. Rotate keys if any earlier zip containing `.env.local` was shared (first review, item 1).
+
+---
+
+## Security review 3: before going live with the Paystack live key
+
+**Checked and fine**
+- The Paystack secret key is only read on the server (`lib/paystack.js`, three API routes). No `NEXT_PUBLIC_` variable holds a secret, no component imports the service-role client.
+- The amount charged is chosen by the server; the browser only gets an access code. Every payment is re-verified with Paystack (amount, currency, email, owner) before a seat is given. The webhook checks the HMAC-SHA512 signature before doing anything.
+- Every table has Row Level Security. Only admins can update profiles directly; students change their own tool ticks, terms acceptance and session through narrow `security definer` functions with a pinned `search_path`.
+- All server actions check who is calling (`requireAdmin` or a signed-in user). The cron route needs `CRON_SECRET`. The public certificate lookups are rate limited and never reveal an email address.
+- `.env*` files are git-ignored; the zips contain only `.env.example`.
+
+**Fixed in this round**
+- Same account on several devices: now one device at a time (`supabase/9-single-session.sql` + middleware). A newer sign-in signs the older device out, and the older device sees a clear message.
+- Wrong-area access: a student on `/admin` (or any role on another role's area) is now sent straight to their own home page by middleware, instead of a dead-end page. The "Not authorized" page now has a Sign out button.
+- The online payment now requires the Terms box server-side, not just in the page.
+
+**Before you switch to the live key (do these in order)**
+1. In Vercel, set `PAYSTACK_SECRET_KEY` to the `sk_live_...` key for the **Production** environment only (leave Preview on the test key). Mark it Sensitive. Redeploy; changes do not apply to old deployments.
+2. In Paystack, switch the dashboard to **Live** mode and set the Webhook URL there too: `https://YOUR-DOMAIN/api/payments/webhook`. Test and Live have separate webhook settings.
+3. Pending payments started with the test key cannot be verified with the live key. Switch when no student is mid-payment.
+4. Make a real small payment yourself (for example set one course to a low price), check the seat, receipt and webhook, then restore the price.
+5. In Supabase, Authentication > URL Configuration: set Site URL to your real domain and remove `localhost` from the redirect list. Keep Google as the only sign-in method.
+6. Turn on 2-step verification on the admin Google account, because that is the only key to `/admin`.
+7. Delete test students, test registrations and test payment intents before launch.
+8. Set `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` in Vercel (Production). Never paste keys into chat, the repo or screenshots; if one leaks, rotate it in its dashboard.
+
+**Still open (not fixed here)**
+- Next.js 14.2.35 is end of life: plan an upgrade to a current supported version and test the payment flow after it.
+- There is no `package-lock.json`: run `npm install` once and commit the lock file so Vercel builds the exact versions you tested.
+- The strict Content-Security-Policy is still report-only. Click through sign-in, payment, video and uploads with the console open; if there are no violations, rename the header to enforce it.
+- Supabase auth cookies are readable by the page's JavaScript (a Supabase limitation). The strict CSP above is what limits the damage of any future XSS.
+- One-device-at-a-time is checked when a portal page loads, not instantly: a device that is already open notices on its next click or refresh.
+
+### How to switch the Content-Security-Policy from report-only to enforced
+1. Deploy a **Preview** (or run `npm run build && npm start` locally). Open it with DevTools > Console open.
+2. Click through: home, sign in with Google, register up to the Paystack popup (test key), a dashboard with a YouTube video, a class video playing, an admin upload, the certificate page and a /verify link.
+3. Any line starting "Content Security Policy" / "Refused to ..." is something the policy would block. Add that host to the matching list in `next.config.js` (script-src, img-src, connect-src, frame-src...) and repeat until the console is clean.
+4. In Vercel > Settings > Environment Variables add `CSP_ENFORCE` = `1` (Production), redeploy.
+5. Check payment and sign-in once on the live site. If anything breaks, delete the variable and redeploy: you are back to report-only in one minute.

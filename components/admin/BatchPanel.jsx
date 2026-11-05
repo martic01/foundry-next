@@ -11,6 +11,7 @@ import BulkMoveBar from './BulkMoveBar';
 import { useSelection } from './useSelection';
 import { useDialog } from '../ui/DialogProvider';
 import SearchBox, { matchesQuery } from '../ui/SearchBox';
+import TagFilters, { NO_TAG_FILTER, tagFilterActive, matchesTagFilter } from './TagFilters';
 
 // One batch: rename it, set its start date, run its 9-week clock, and
 // manage the students in it. Announcements, class links and videos for a
@@ -25,6 +26,7 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
   const [showStudents, setShowStudents] = useState(true);
   const [payFilter, setPayFilter] = useState('all');
   const [query, setQuery] = useState('');
+  const [tagF, setTagF] = useState(NO_TAG_FILTER);
   const [isPending, startTransition] = useTransition();
   const sel = useSelection();
   const [status, setStatus] = useState({ text: '', kind: '' });
@@ -105,9 +107,9 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
     return acc;
   }, {});
   const shownStudents = students.filter(
-    (s) => (payFilter === 'all' || s.payment?.status === payFilter) && matchesQuery(query, s.fullName, s.email)
+    (s) => (payFilter === 'all' || s.payment?.status === payFilter) && matchesQuery(query, s.fullName, s.email) && matchesTagFilter(s.tags, tagF)
   );
-  const narrowed = payFilter !== 'all' || query.trim() !== '';
+  const narrowed = payFilter !== 'all' || tagFilterActive(tagF) || query.trim() !== '';
 
   const btn =
     'inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-xs font-medium transition disabled:pointer-events-none disabled:opacity-40';
@@ -313,6 +315,7 @@ export default function BatchPanel({ batch, students, otherBatches, serverNow, t
             )}
           </div>
         )}
+        {showStudents && students.length > 0 && <TagFilters value={tagF} onChange={setTagF} className="mb-2" />}
         {showStudents && students.length > 0 && (
           <SearchBox value={query} onChange={setQuery} placeholder="Search this batch by name or email" label="Search students in this batch" className="mb-2" />
         )}

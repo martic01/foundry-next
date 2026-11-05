@@ -1,6 +1,7 @@
 import { createClient } from '../../../lib/supabase/server';
 import { COURSES } from '../../../lib/courses';
 import { getPayment, getSource } from '../../../lib/payments';
+import { studentTags } from '../../../lib/student-status';
 import BatchPanel from '../../../components/admin/BatchPanel';
 import UnassignedStudents from '../../../components/admin/UnassignedStudents';
 import CreateBatchForm from '../../../components/admin/CreateBatchForm';
@@ -11,7 +12,7 @@ export const metadata = { title: 'Batches — The Foundry' };
 export default async function BatchesPage() {
   const supabase = await createClient();
 
-  const regBase = 'id, course, batch_id, age, paystack_reference, profiles(id, full_name, email, blocked, role)';
+  const regBase = 'id, course, batch_id, age, paystack_reference, profiles(*)';
   const [{ data: batches }, { data: teacherRows }, { data: assignments }, withPayment] = await Promise.all([
     supabase.from('batches').select('*').order('course').order('created_at'),
     supabase.from('profiles').select('id, full_name').eq('role', 'teacher').order('full_name'),
@@ -31,7 +32,16 @@ export default async function BatchesPage() {
   const blockedRes = await supabase.from('registrations').select('id, blocked').eq('status', 'paid');
   const blockedIds = new Set((blockedRes.error ? [] : blockedRes.data || []).filter((r) => r.blocked).map((r) => r.id));
 
+  // Every course each student is in (a tag looks at all of them).
+  const coursesOf = {};
+  const manualOf = {};
+  (registrations || []).forEach((r) => {
+    (coursesOf[r.profiles?.id] ||= []).push(r.course);
+    if (getSource(r) === 'manual') manualOf[r.profiles?.id] = true;
+  });
+
   const toStudent = (r) => ({
+    tags: studentTags(r.profiles, coursesOf[r.profiles?.id], { manual: !!manualOf[r.profiles?.id] }),
     registrationId: r.id,
     profileId: r.profiles?.id,
     batchId: r.batch_id,

@@ -147,6 +147,9 @@ export default async function InstallationPage() {
       <p className="mb-6 text-sm text-inkdim">
         This is <span className="font-semibold text-ink">required before your first class</span>. You only see what your own course needs.
       </p>
+      <p className="mb-6 rounded-lg border border-brand/40 bg-brand-light p-3 text-sm text-ink">
+        <span className="font-semibold">Remember to tick the checkbox</span> next to each tool when you finish installing it, and tick the WhatsApp box after you join the group. That is how it shows as done for you and for your teacher.
+      </p>
 
       <WhatsAppGroupCard />
 

@@ -3,12 +3,27 @@
 import { useState } from 'react';
 import { Lock, ChevronDown } from 'lucide-react';
 
+// The note text uses a tiny markup: [text]{.mark} highlights code, *text* switches the
+// italic off for a few words, and web addresses become clickable links.
+function Rich({ text }) {
+  const parts = String(text || '').split(/(\[[^\]]+\]\{\.mark\}|\*[^*]+\*|https?:\/\/[^\s)]+[^\s).,;:])/g);
+  return parts.map((p, i) => {
+    if (!p) return null;
+    let m = p.match(/^\[([^\]]+)\]\{\.mark\}$/);
+    if (m) return <code key={i} className="rounded bg-brand/10 px-1 py-0.5 font-mono text-[0.85em] not-italic text-ink">{m[1]}</code>;
+    m = p.match(/^\*([^*]+)\*$/);
+    if (m) return <span key={i} className="not-italic">{m[1]}</span>;
+    if (/^https?:\/\//.test(p)) return <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="break-all font-medium text-brand underline">{p}</a>;
+    return p;
+  });
+}
+
 function ConceptCard({ concept }) {
   return (
     <div className="rounded-lg border border-line bg-surfaceMuted p-4">
       <p className="mb-2 text-sm font-semibold text-ink">{concept.title}</p>
-      <p className="mb-2 text-sm text-inkdim">{concept.meaning}</p>
-      {concept.example && <p className="text-sm italic text-brand-dark">{concept.example}</p>}
+      <p className="mb-2 text-sm text-inkdim"><Rich text={concept.meaning} /></p>
+      {concept.example && <p className="text-sm italic text-brand-dark"><Rich text={concept.example} /></p>}
     </div>
   );
 }
