@@ -68,12 +68,12 @@ export default function RegisterFlow({ settingsByCourse, hrContacts }) {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
-      {done ? <DoneStep course={course} /> : <DetailsStep course={course} onDone={() => setDone(true)} onPriceChange={setPriceOverride} />}
+      {done ? <DoneStep course={course} /> : <DetailsStep course={course} startsText={startsLabel(settingsByCourse[course.key])} onDone={() => setDone(true)} onPriceChange={setPriceOverride} />}
     </main>
   );
 }
 
-function DetailsStep({ course, onDone, onPriceChange }) {
+function DetailsStep({ course, startsText, onDone, onPriceChange }) {
   const searchParams = useSearchParams();
   const [user, setUser] = useState(null); // Supabase user once signed in with Google
   const [checkingSession, setCheckingSession] = useState(true);
@@ -258,8 +258,8 @@ function DetailsStep({ course, onDone, onPriceChange }) {
       <div>
         <p className="eyebrow mb-2">State AI Training</p>
         <h1 className="mb-1 font-display text-2xl font-extrabold text-ink">{course.name}</h1>
-        {startsLabel(settingsByCourse[course.key]) && (
-          <p className="mb-2 inline-flex w-fit rounded-full bg-brand-light px-2.5 py-1 text-xs font-semibold text-ink">{startsLabel(settingsByCourse[course.key])}</p>
+        {startsText && (
+          <p className="mb-2 inline-flex w-fit rounded-full bg-brand-light px-2.5 py-1 text-xs font-semibold text-ink">{startsText}</p>
         )}
         <p className="mb-5 text-brand-dark">{course.tagline}</p>
 

@@ -43,12 +43,14 @@ export async function saveTimetable(batchId, rows) {
   const c = cleanRows(rows);
   if (c.error) return c;
   const db = createAdminClient();
-  const { error: delErr } = await db.from('batch_timetable').delete().eq('batch_id', batchId);
-  if (delErr) return fail(delErr);
+  // Write the new rows first (replacing by position), then drop any leftover
+  // positions: a failed save can never leave the batch with no timetable.
   if (c.rows.length) {
-    const { error } = await db.from('batch_timetable').insert(c.rows.map((r) => ({ ...r, batch_id: batchId })));
+    const { error } = await db.from('batch_timetable').upsert(c.rows.map((r) => ({ ...r, batch_id: batchId })), { onConflict: 'batch_id,sort' });
     if (error) return fail(error);
   }
+  const { error: delErr } = await db.from('batch_timetable').delete().eq('batch_id', batchId).gt('sort', c.rows.length);
+  if (delErr) return fail(delErr);
   refresh();
   return { ok: true };
 }

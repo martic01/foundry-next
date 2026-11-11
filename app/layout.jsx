@@ -42,6 +42,8 @@ export const metadata = {
   twitter: { card: 'summary_large_image', title: SITE_TITLE, description: SITE_DESCRIPTION, images: [OG_IMAGE.url] },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 } },
   appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: 'default' },
+  // Chrome now wants the standard tag next to the Apple one (the Apple tag alone logs a deprecation warning).
+  other: { 'mobile-web-app-capable': 'yes' },
   // Paste the code from Google Search Console / Bing Webmaster into these env vars (optional).
   verification: { google: process.env.GOOGLE_SITE_VERIFICATION || undefined, other: process.env.BING_SITE_VERIFICATION ? { 'msvalidate.01': process.env.BING_SITE_VERIFICATION } : undefined }
 };
