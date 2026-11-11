@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CalendarDays, Hourglass, Users, ShieldCheck, Sparkles } from 'lucide-react';
 import CohortCarousel from '../components/CohortCarousel';
+import { COHORT_START_SHORT, COHORT_LENGTH_WEEKS } from '../lib/cohort';
 import CourseCard from '../components/CourseCard';
 import Robot3D from '../components/Robot3DLazy';
 import { CategoryGrid, ProcessSteps, SplitCta, Faq } from '../components/MarketplaceSections';
@@ -10,7 +11,7 @@ import { getPublicSiteContacts } from '../lib/site-contacts';
 import { withPrice } from '../lib/pricing';
 import WorkspaceSection from '../components/WorkspaceSection';
 import EventSection from '../components/EventSection';
-import { getAvailability } from '../lib/course-status';
+import { getAvailability, startsLabel } from '../lib/course-status';
 import { FAQS } from '../components/MarketplaceSections';
 import { SITE_URL, SITE_NAME, BRAND_VARIANTS, SITE_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, pageMeta, jsonLd } from '../lib/seo';
 import { normalizePhone } from '../lib/site-contacts';
@@ -142,7 +143,7 @@ export default async function FoundryHome() {
                 <CalendarDays className="h-4 w-4 flex-shrink-0 text-brand" /> {anyOpen ? 'Registration is open now' : 'Registration is closed right now — see each course below for when it opens'}
               </li>
               <li className="flex items-center gap-2.5">
-                <Hourglass className="h-4 w-4 flex-shrink-0 text-brand" /> Closes the day the cohort starts — date announced to the waitlist
+                <Hourglass className="h-4 w-4 flex-shrink-0 text-brand" /> Next cohort: {COHORT_START_SHORT}, {COHORT_LENGTH_WEEKS} weeks. Registration closes when the cohort starts or all seats are taken
               </li>
               <li className="flex items-center gap-2.5">
                 <Users className="h-4 w-4 flex-shrink-0 text-brand" /> Limited spots per cohort (50 per batch)
@@ -162,7 +163,7 @@ export default async function FoundryHome() {
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
           {Object.values(COURSES).map((c) => (
-            <CourseCard key={c.key} course={withPrice(c, settings[c.key])} availability={availability[c.key]} contacts={contacts.hr} />
+            <CourseCard key={c.key} course={withPrice(c, settings[c.key])} availability={availability[c.key]} contacts={contacts.hr} startsLabel={startsLabel(settings[c.key])} />
           ))}
         </div>
       </section>

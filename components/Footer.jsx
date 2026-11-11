@@ -8,7 +8,9 @@ export default function Footer() {
           &copy; {new Date().getFullYear()} Matthew Aboyade. Designed &amp; built with
           <Heart className="h-3.5 w-3.5 fill-brand text-brand" />
         </span>
-        <span className="flex items-center gap-4">
+        <span className="flex flex-wrap items-center justify-center gap-4">
+          <a href="/terms" className="hover:text-brand">Terms</a>
+          <a href="/privacy" className="hover:text-brand">Privacy</a>
           <a href="https://github.com/martic01" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-brand">
             <Github className="h-4 w-4" /> GitHub
           </a>

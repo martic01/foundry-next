@@ -1082,7 +1082,17 @@ export async function updateCourseSettings(courseKey, settings) {
     }
   }
 
-  const { error } = await supabase.from('course_settings').upsert({
+  // Optional start date / time shown on the registration card.
+  let startFields = {};
+  if (settings && ('startDate' in settings || 'startTime' in settings)) {
+    const sd = String(settings.startDate || '').trim();
+    const st = String(settings.startTime || '').trim();
+    if (sd && !/^\d{4}-\d{2}-\d{2}$/.test(sd)) return { error: 'Invalid start date.' };
+    if (st.length > 40) return { error: 'The start time is too long (40 characters max).' };
+    startFields = { start_date: sd || null, start_time: st || null };
+  }
+
+  const row = {
     course: courseKey,
     registration_open: registrationOpen,
     tag,
@@ -1092,7 +1102,13 @@ export async function updateCourseSettings(courseKey, settings) {
     ...(typeof settings?.autoClose === 'boolean' ? { auto_close: settings.autoClose } : {}),
     updated_at: new Date().toISOString(),
     updated_by: user?.id
-  });
+  };
+  let { error } = await supabase.from('course_settings').upsert({ ...row, ...startFields });
+  // Migration 11 not run yet: save everything else, and say so.
+  if (error && Object.keys(startFields).length && /start_(date|time)/.test(error.message || '')) {
+    ({ error } = await supabase.from('course_settings').upsert(row));
+    if (!error) { refreshEverything(); return { error: 'Saved, but the start date needs database file 11 to be run first.' }; }
+  }
   if (error) return { error: dbError(error) };
   revalidateTag(COURSE_SETTINGS_TAG); // landing + /register read this through a cache
   refreshEverything();

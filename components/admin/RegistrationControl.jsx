@@ -36,17 +36,19 @@ export default function RegistrationControl({ course, settings, seats, defaults 
   const [reopenDate, setReopenDate] = useState(isoToReopenDateInput(settings.reopen_at));
   const [furtherNotice, setFurtherNotice] = useState(!settings.reopen_at);
   const [autoClose, setAutoClose] = useState(settings.auto_close !== false);
+  const [startDate, setStartDate] = useState(settings.start_date ? String(settings.start_date).slice(0, 10) : '');
+  const [startTime, setStartTime] = useState(settings.start_time || '');
   const [isPending, startTransition] = useTransition();
 
   const closing = !open || TAGS[tag].closes;
 
   // What is stored right now vs what is on screen: drives the "unsaved / saved" indicator.
   const snap = (v) => ({
-    open: v.open, tag: v.tag, autoClose: v.autoClose, priceNow: String(v.priceNow).trim(), priceWas: String(v.priceWas || '').trim(),
+    open: v.open, tag: v.tag, autoClose: v.autoClose, startDate: v.startDate || '', startTime: (v.startTime || '').trim(), priceNow: String(v.priceNow).trim(), priceWas: String(v.priceWas || '').trim(),
     reopen: v.closing ? (v.furtherNotice ? 'further notice' : v.reopenDate || '') : ''
   });
-  const current = snap({ open, tag, priceNow, priceWas, closing, furtherNotice, reopenDate, autoClose });
-  const [base, setBase] = useState(() => snap({ autoClose: settings.auto_close !== false, open: settings.registration_open, tag: settings.tag || 'none', priceNow: cur.now, priceWas: cur.was, closing: !settings.registration_open || TAGS[settings.tag || 'none'].closes, furtherNotice: !settings.reopen_at, reopenDate: isoToReopenDateInput(settings.reopen_at) }));
+  const current = snap({ open, tag, priceNow, priceWas, closing, furtherNotice, reopenDate, autoClose, startDate, startTime });
+  const [base, setBase] = useState(() => snap({ startDate: settings.start_date ? String(settings.start_date).slice(0, 10) : '', startTime: settings.start_time || '', autoClose: settings.auto_close !== false, open: settings.registration_open, tag: settings.tag || 'none', priceNow: cur.now, priceWas: cur.was, closing: !settings.registration_open || TAGS[settings.tag || 'none'].closes, furtherNotice: !settings.reopen_at, reopenDate: isoToReopenDateInput(settings.reopen_at) }));
   const [savedAt, setSavedAt] = useState(null);
   const [error, setError] = useState({ text: '', key: '' });
   const key = JSON.stringify(current);
@@ -61,6 +63,7 @@ export default function RegistrationControl({ course, settings, seats, defaults 
   if (current.priceWas !== base.priceWas) changes.push(['Crossed-out price', money(base.priceWas), money(current.priceWas)]);
   if (current.autoClose !== base.autoClose) changes.push(['Auto-close', base.autoClose ? 'On' : 'Off', current.autoClose ? 'On' : 'Off']);
   if (current.reopen !== base.reopen) changes.push(['Reopens', base.reopen || 'not set', current.reopen || 'not set']);
+  if (current.startDate !== base.startDate || current.startTime !== base.startTime) changes.push(['Start shown on card', [base.startDate, base.startTime].filter(Boolean).join(' ') || 'not set', [current.startDate, current.startTime].filter(Boolean).join(' ') || 'not set']);
   const dirty = changes.length > 0;
   const shownError = error.key === key ? error.text : '';
   // What students would see if this were saved right now.
@@ -82,6 +85,8 @@ export default function RegistrationControl({ course, settings, seats, defaults 
         tag,
         reopenDate: closing && !furtherNotice ? reopenDate : '',
         untilFurtherNotice: closing && furtherNotice,
+        startDate,
+        startTime,
         ...(current.autoClose !== base.autoClose ? { autoClose } : {})
       });
       if (res?.error) return setError({ text: res.error, key });
@@ -103,6 +108,8 @@ export default function RegistrationControl({ course, settings, seats, defaults 
     setPriceNow(base.priceNow);
     setPriceWas(base.priceWas);
     setAutoClose(base.autoClose);
+    setStartDate(base.startDate);
+    setStartTime(base.startTime);
     setFurtherNotice(base.reopen === 'further notice' || !base.reopen);
     setReopenDate(base.reopen && base.reopen !== 'further notice' ? base.reopen : '');
   }
@@ -190,6 +197,22 @@ export default function RegistrationControl({ course, settings, seats, defaults 
         </div>
         {priceCheck.error && priceDirty && <p className="mt-2 text-xs text-red-600">{priceCheck.error}</p>}
         <p className="mt-2 text-xs text-inkdim">The new price applies to new payments straight away: the landing page, register page and payment check all use it.</p>
+      </div>
+
+      <div className="mt-5 rounded-lg border border-line p-4">
+        <p className="mb-1 text-sm font-semibold text-ink">Start date and time (optional)</p>
+        <p className="mb-3 text-xs text-inkdim">Shown on the course card and the register page, like the Coming soon tag. Leave both empty to show nothing.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-inkdim">Start date</span>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="field" disabled={isPending} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-inkdim">Start time (any text)</span>
+            <input value={startTime} onChange={(e) => setStartTime(e.target.value)} maxLength={40} placeholder="e.g. 5:00 PM" className="field" disabled={isPending} />
+          </label>
+        </div>
+        {(startDate || startTime) && <button type="button" onClick={() => { setStartDate(''); setStartTime(''); }} className="mt-2 text-xs underline underline-offset-2 text-inkdim hover:text-ink">Clear start info</button>}
       </div>
 
       {closing && (

@@ -33,10 +33,13 @@ export default function TermsModal() {
         <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand/10 text-brand"><ScrollText className="h-5 w-5" /></div>
         <h2 id="terms-title" className="mb-1 font-display text-lg font-extrabold text-ink">Terms and policy</h2>
         <p id="terms-desc" className="mb-3 text-sm text-inkdim">
-          The school registered you for a course. Before you continue, please read and accept our terms and policy, including the no-refund and minimum-age rules.
+          The school registered you for a course. Before you continue, please read and accept our terms and policy, including the refund, minimum-age and privacy rules. If you are under 18, a parent or guardian must agree for you.
         </p>
         <a href="/terms" target="_blank" rel="noopener noreferrer" className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
           Read the Terms &amp; Policy <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="mb-4 ml-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
+          Privacy Notice <ExternalLink className="h-3.5 w-3.5" />
         </a>
 
         {error && <p className="mb-3 rounded-md bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</p>}

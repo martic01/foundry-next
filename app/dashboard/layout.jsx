@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { LayoutDashboard, BookOpen, Receipt, Megaphone, Wrench, NotebookText, Compass, Award, Lock } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Receipt, Megaphone, Wrench, NotebookText, Compass, Award, Lock, CalendarDays } from 'lucide-react';
 import { createClient } from '../../lib/supabase/server';
 import { getUser, getProfile } from '../../lib/supabase/session';
 import { signOutAction } from '../actions';
@@ -80,6 +80,7 @@ export default async function DashboardLayout({ children }) {
     { href: '/dashboard/courses', label: 'My courses', icon: <BookOpen className="h-4 w-4" /> },
     { href: '/dashboard/other-courses', label: 'Other courses', icon: <Compass className="h-4 w-4" /> },
     { href: '/dashboard/installation', label: 'Installation', icon: <Wrench className="h-4 w-4" />, badge: installationPending },
+    { href: '/dashboard/timetable', label: 'Timetable', icon: <CalendarDays className="h-4 w-4" /> },
     { href: '/dashboard/notes', label: 'Notes', icon: <NotebookText className="h-4 w-4" /> },
     { href: '/dashboard/certificate', label: 'Certificate', icon: certCount ? <Award className="h-4 w-4" /> : <Lock className="h-4 w-4" /> },
     { href: '/dashboard/receipts', label: 'Receipts', icon: <Receipt className="h-4 w-4" /> },

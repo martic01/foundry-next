@@ -1,4 +1,5 @@
 import { CheckCircle2, CalendarDays, Layers, BadgeCheck, Link2 } from 'lucide-react';
+import { COHORT_START_SHORT } from '../../lib/cohort';
 import { getPayment } from '../../lib/payments';
 import { formatStartDate } from '../../lib/batch-timer';
 
@@ -45,7 +46,7 @@ export default function EnrollmentCard({ registration, course, batch, linkCount 
               <CalendarDays className="h-3.5 w-3.5" /> Course starts
             </dt>
             <dd className="font-semibold text-ink">
-              {batch?.start_date ? formatStartDate(batch.start_date) : 'To be announced'}
+              {batch?.start_date ? formatStartDate(batch.start_date) : `${COHORT_START_SHORT} (exact date to be confirmed)`}
             </dd>
           </div>
 

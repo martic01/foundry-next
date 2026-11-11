@@ -1,4 +1,5 @@
 import { Compass, Palette, Eye, Rocket, ArrowRight, Plus, Sparkles } from 'lucide-react';
+import { COHORT_SUMMARY } from '../lib/cohort';
 import { MIN_AGE } from '../lib/courses';
 
 const CATEGORIES = [
@@ -123,6 +124,7 @@ export function SplitCta() {
 // Shown on the home page AND published as FAQPage structured data (app/page.jsx),
 // so the wording is written the way people search.
 export const FAQS = [
+  { q: 'When does the next cohort start and how long does it last?', a: `${COHORT_SUMMARY} There are 3 live classes a week (27 classes in total). The exact first-class date and session times are confirmed to registered learners before the start.` },
   { q: 'What will I learn in the coding and AI courses?', a: 'Stage 1 teaches HTML, CSS and JavaScript from the ground up, plus Git and GitHub, while using AI to explain, debug and refactor code. Stage 2 takes you into React: components, hooks, routing, Tailwind CSS and API integration. The Cybersecurity + AI course covers security foundations, hands-on labs and using AI to scan and defend.' },
   { q: 'Do I need coding experience to start?', a: 'No. Stage 1 starts from the fundamentals. If you already know HTML, CSS and JavaScript you can go straight into Stage 2 (React).' },
   { q: 'How do the courses work?', a: 'Each course runs as a cohort with live sessions, real projects and feedback from an actual instructor, not just an AI. Class videos, notes, links and announcements are in your learner dashboard.' },

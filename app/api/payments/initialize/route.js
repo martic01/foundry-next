@@ -13,7 +13,7 @@ import { effectivePrice } from '../../../../lib/pricing';
 export async function POST(request) {
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid request.' }, { status: 400 }); }
-  const { courseKey, dob, specsAgreed, termsAgreed, expectedPrice } = body || {};
+  const { courseKey, dob, specsAgreed, termsAgreed, guardianConsent, expectedPrice } = body || {};
   const course = getCourse(courseKey);
   if (!course || typeof dob !== 'string' || dob.length > 20) return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   if (course.contactOnly) return NextResponse.json({ error: 'This course is by enquiry only. Please contact us on WhatsApp or email.' }, { status: 400 });
@@ -34,6 +34,9 @@ export async function POST(request) {
 
   const age = calculateAge(dob);
   if (age === null || age < MIN_AGE) return NextResponse.json({ error: `You must be at least ${MIN_AGE} to register for this course.` }, { status: 400 });
+
+  // Under 18 is a child in Nigerian law: a parent or guardian must have agreed.
+  if (age < 18 && guardianConsent !== true) return NextResponse.json({ error: 'A parent or guardian must agree before you can register if you are under 18.' }, { status: 400 });
 
   const { data: existingPaid } = await admin.from('registrations').select('id').eq('user_id', user.id).eq('course', course.key).eq('status', 'paid').maybeSingle();
   if (existingPaid) return NextResponse.json({ error: 'You’ve already registered for this course.' }, { status: 409 });

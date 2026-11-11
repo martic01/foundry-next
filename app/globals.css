@@ -212,3 +212,11 @@
 @media (prefers-reduced-motion: reduce) {
   .foundry-loader-ring, .foundry-loader-logo, .foundry-loader-glow, .foundry-loader-bar::after { animation: none; }
 }
+
+/* Printing just the class timetable (components/timetable/TimetableView.jsx). */
+@media print {
+  html.printing-tt body * { visibility: hidden; }
+  html.printing-tt .tt-print, html.printing-tt .tt-print * { visibility: visible; }
+  html.printing-tt .tt-print { position: absolute; left: 0; top: 0; width: 100%; }
+  html.printing-tt .tt-noprint, html.printing-tt .tt-noprint * { display: none !important; }
+}

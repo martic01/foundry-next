@@ -3,6 +3,7 @@ import { Check, ArrowRight, Clock } from 'lucide-react';
 import AutoPanImage from './AutoPanImage';
 import { formatNaira } from '../lib/courses';
 import { TAGS, formatReopenDate } from '../lib/course-status';
+import { CalendarDays } from 'lucide-react';
 import ContactButtons from './ContactButtons';
 
 const TAG_STYLES = {
@@ -14,7 +15,7 @@ const TAG_STYLES = {
 
 // `availability` comes from getAvailability() (lib/course-status.js),
 // computed on the server from the admin's course_settings.
-export default function CourseCard({ course, availability, contacts }) {
+export default function CourseCard({ course, availability, contacts, startsLabel }) {
   const enquiry = course.contactOnly;
   const closedLabel =
     availability.tag === 'ended' ? 'Registration ended' : availability.tag === 'sold_out' ? 'All seats taken' : availability.tag === 'coming_soon' ? 'Coming soon' : 'Registration closed';
@@ -35,6 +36,9 @@ export default function CourseCard({ course, availability, contacts }) {
       </div>
       <div className="flex flex-1 flex-col gap-3 p-5">
         <p className="text-sm font-semibold text-ink">{course.name}</p>
+        {!enquiry && startsLabel ? (
+          <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-light px-2.5 py-1 text-[11px] font-semibold text-ink"><CalendarDays className="h-3 w-3 text-brand-dark" /> {startsLabel}</p>
+        ) : null}
         <p className="text-sm text-inkdim">{course.tagline}</p>
         <ul className="space-y-1.5">
           {course.learn.slice(0, 3).map((item) => (

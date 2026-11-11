@@ -6,9 +6,9 @@ import { Lock, PartyPopper, CheckCircle2, Loader2, ArrowRight, ShieldCheck, Lapt
 import AutoPanImage from './AutoPanImage';
 import GoogleIcon from './icons/GoogleIcon';
 import { createClient } from '../lib/supabase/client';
-import { COURSES, getCourse, MIN_AGE, isAgeEligible, formatNaira } from '../lib/courses';
+import { COURSES, getCourse, MIN_AGE, isAgeEligible, calculateAge, formatNaira } from '../lib/courses';
 import { LAPTOP_SPECS } from '../lib/laptop-specs';
-import { getAvailability, describeClosure } from '../lib/course-status';
+import { getAvailability, describeClosure, startsLabel } from '../lib/course-status';
 import { saveCertificateNameAction } from '../app/actions';
 import { validateCertificateName } from '../lib/certificates';
 import { withPrice } from '../lib/pricing';
@@ -81,6 +81,7 @@ function DetailsStep({ course, onDone, onPriceChange }) {
   const [authStatus, setAuthStatus] = useState({ text: '', kind: '' });
 
   const [dob, setDob] = useState('');
+  const [guardianOk, setGuardianOk] = useState(false);
   const [fullName, setFullName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -156,7 +157,9 @@ function DetailsStep({ course, onDone, onPriceChange }) {
   const ageEligible = dobEntered && isAgeEligible(dob);
   const ageIneligible = dobEntered && !ageEligible;
   const nameCheck = validateCertificateName(fullName);
-  const canPay = !!user && !!nameCheck.ok && ageEligible && agreed && specsAgreed && !paying && !alreadyPaid;
+  // Under 18 = a child in Nigerian law: a parent or guardian must agree for them.
+  const needsGuardian = ageEligible && (calculateAge(dob) ?? 99) < 18;
+  const canPay = !!user && !!nameCheck.ok && ageEligible && agreed && (!needsGuardian || guardianOk) && specsAgreed && !paying && !alreadyPaid;
 
   async function handlePay() {
     if (!canPay) return;
@@ -181,7 +184,7 @@ function DetailsStep({ course, onDone, onPriceChange }) {
       const res = await fetch('/api/payments/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courseKey: course.key, dob, specsAgreed, termsAgreed: agreed, expectedPrice: course.priceNow })
+        body: JSON.stringify({ courseKey: course.key, dob, specsAgreed, termsAgreed: agreed, guardianConsent: needsGuardian ? guardianOk : false, expectedPrice: course.priceNow })
       });
       init = await res.json();
       if (res.status === 409 && init.error === 'price_changed') {
@@ -255,6 +258,9 @@ function DetailsStep({ course, onDone, onPriceChange }) {
       <div>
         <p className="eyebrow mb-2">State AI Training</p>
         <h1 className="mb-1 font-display text-2xl font-extrabold text-ink">{course.name}</h1>
+        {startsLabel(settingsByCourse[course.key]) && (
+          <p className="mb-2 inline-flex w-fit rounded-full bg-brand-light px-2.5 py-1 text-xs font-semibold text-ink">{startsLabel(settingsByCourse[course.key])}</p>
+        )}
         <p className="mb-5 text-brand-dark">{course.tagline}</p>
 
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-inkdim">What you&apos;ll learn</p>
@@ -377,9 +383,22 @@ function DetailsStep({ course, onDone, onPriceChange }) {
             I agree to the{' '}
             <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-brand underline">
               Terms &amp; Policy
+            </a>{' '}
+            and the{' '}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-brand underline">
+              Privacy Notice
             </a>
           </span>
         </label>
+
+        {needsGuardian && (
+          <label className="mb-5 flex cursor-pointer items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <input type="checkbox" checked={guardianOk} onChange={(e) => setGuardianOk(e.target.checked)} className="mt-1 accent-brand" />
+            <span>
+              <span className="font-semibold">You are under 18.</span> My parent or legal guardian has read the Terms &amp; Policy and Privacy Notice, agrees to them for me, and agrees to the payment.
+            </span>
+          </label>
+        )}
 
         {!alreadyPaid && otherCourses.length > 0 && (
           <p className="mb-4 rounded-lg border border-line bg-surfaceMuted p-3 text-sm text-inkdim">

@@ -26,3 +26,5 @@ Run these in the Supabase SQL editor. Every file is safe to re-run.
 | `5-payment-intents.sql` | Server-started Paystack payments (the price is fixed by the server, and the webhook uses it) |
 | `6-names-and-installs.sql` | The name a student chose is what the site shows (Google name kept as an alternative); per-course installation checklist |
 | `7-auto-close.sql` | Registration closes automatically at 50 seats or when the class timer starts (per-course switch) |
+
+| `11-timetable-legal.sql` | Class timetable per batch, teacher edit permissions, course start date/time on cards, editable Terms & Privacy (run once after 10) |

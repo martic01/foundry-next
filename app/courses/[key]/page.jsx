@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { COHORT_SUMMARY } from '../../../lib/cohort';
 import { notFound } from 'next/navigation';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
 import { COURSES } from '../../../lib/courses';
@@ -78,6 +79,8 @@ export default function CoursePage({ params }) {
           <li key={l} className="flex items-start gap-2 text-sm text-ink"><CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand" /> {l}</li>
         ))}
       </ul>
+
+      {!c.contactOnly && <p className="mb-6 rounded-lg border border-line bg-surfaceMuted p-3 text-sm text-ink"><strong>Next cohort:</strong> {COHORT_SUMMARY}</p>}
 
       <div className="mb-10 flex flex-wrap gap-3">
         <Link href={c.contactOnly ? '/#hr' : '/register'} className="cta-btn inline-flex items-center gap-2">{c.contactOnly ? 'Enquire now' : 'Register for this course'} <ArrowRight className="h-4 w-4" /></Link>
