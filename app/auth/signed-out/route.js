@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url);
-  const to = searchParams.get('to') === '/admin/login' ? '/admin/login' : '/login';
+  const to = '/login';
   const supabase = await createClient();
   await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
   return NextResponse.redirect(`${origin}${to}?reason=other_device`);

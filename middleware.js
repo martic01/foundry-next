@@ -44,12 +44,14 @@ export async function middleware(request) {
   }
 
   const path = request.nextUrl.pathname;
-  const isAdminRoute = path.startsWith('/admin') && path !== '/admin/login';
+  // There is ONE login page for everyone (/login). The old /admin/login address just points there,
+  // so the public never sees a page that advertises an admin sign-in.
+  if (path === '/admin/login' || path === '/admin/login/') return NextResponse.redirect(new URL('/login', request.url));
+  const isAdminRoute = path.startsWith('/admin');
   const isDashboardRoute = path.startsWith('/dashboard') || path.startsWith('/teacher');
 
   if (!user && (isAdminRoute || isDashboardRoute)) {
-    const loginPath = isAdminRoute ? '/admin/login' : '/login';
-    return NextResponse.redirect(new URL(loginPath, request.url));
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   if (!user || !(isAdminRoute || isDashboardRoute)) return response;
@@ -69,7 +71,7 @@ export async function middleware(request) {
       const { data: { session } } = await supabase.auth.getSession();
       const sid = sessionIdFromToken(session?.access_token);
       if (sid && prof.active_session && prof.active_session !== sid) {
-        const to = isAdminRoute ? '/admin/login' : '/login';
+        const to = '/login';
         return NextResponse.redirect(new URL(`/auth/signed-out?to=${encodeURIComponent(to)}`, request.url));
       }
       if (sid && !prof.active_session) await supabase.rpc('register_session', { p_session: sid, p_only_if_empty: true });

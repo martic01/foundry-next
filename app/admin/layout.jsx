@@ -14,7 +14,7 @@ export default async function AdminLayout({ children }) {
   // Per-request cached lookups (lib/supabase/session.js): the root Nav
   // and the page share these instead of each calling Supabase again.
   const user = await getUser();
-  if (!user) redirect('/admin/login'); // defense in depth -- middleware already covers this
+  if (!user) redirect('/login'); // defense in depth -- middleware already covers this
 
   const profile = await getProfile(user.id);
 
