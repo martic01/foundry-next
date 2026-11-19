@@ -119,6 +119,18 @@ export default function ProctorCam({ attemptId, paused = false, onLive }) {
   useEffect(() => { if (paused) stopAll(); }, [paused, stopAll]);
   useEffect(() => { if (mode === 'video' && videoRef.current && streamRef.current) { videoRef.current.srcObject = streamRef.current; videoRef.current.play?.().catch(() => {}); } }, [mode]);
 
+  // A phone switches the camera off when the app is left. When the student comes back, turn it on again by itself.
+  useEffect(() => {
+    const back = () => {
+      if (document.visibilityState !== 'visible' || paused || !alive.current) return;
+      const tracks = streamRef.current?.getTracks?.() || [];
+      if (mode !== 'blocked' && tracks.length && tracks.every((t) => t.readyState === 'live')) return;
+      start(micChosen());
+    };
+    document.addEventListener('visibilitychange', back);
+    return () => document.removeEventListener('visibilitychange', back);
+  }, [mode, paused, start]);
+
   const live = mode === 'video' || mode === 'audio';
   const light = useBrightness(videoRef, mode === 'video' && !paused);
   useEffect(() => { onLive?.(live && !paused); }, [live, paused]); // eslint-disable-line react-hooks/exhaustive-deps

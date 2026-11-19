@@ -148,7 +148,10 @@ export default function ExamRunner({ attemptId, questions, sections, initialAnsw
       if (on) wasFs.current = true;
       else if (wasFs.current && document.documentElement.requestFullscreen) { wasFs.current = false; strike(); }
     };
-    const vis = () => { if (document.visibilityState === 'hidden' && !done.current) strike(); };
+    const vis = () => {
+      if (document.visibilityState === 'hidden' && !done.current) strike();
+      else if (document.visibilityState === 'visible' && !done.current) { sync(); router.refresh(); } // came back to the exam: send saved answers and fetch fresh state
+    };
     check();
     document.addEventListener('fullscreenchange', check);
     document.addEventListener('visibilitychange', vis);
@@ -161,7 +164,7 @@ export default function ExamRunner({ attemptId, questions, sections, initialAnsw
       document.removeEventListener('visibilitychange', vis);
       window.removeEventListener('popstate', back);
     };
-  }, [strike]);
+  }, [strike, sync, router]);
   // Whatever way the exam ends (submitted, time up, strikes, page left), camera, microphone and full screen go off.
   useEffect(() => () => { stopAllMedia(); if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); }, []);
   // Developer tools: the usual shortcuts are blocked, and opening them any other way (docked panel) counts as a violation.

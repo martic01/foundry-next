@@ -27,7 +27,7 @@ const securityHeaders = [
       "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com https://*.supabase.co https://lh3.googleusercontent.com https://*.paystack.co https://*.paystack.com",
       "media-src 'self' blob: https://res.cloudinary.com https://*.supabase.co",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cloudinary.com https://*.paystack.co https://*.paystack.com",
+      "connect-src 'self' blob: data: https://*.supabase.co wss://*.supabase.co https://api.cloudinary.com https://*.paystack.co https://*.paystack.com",
       "frame-src https://checkout.paystack.com https://js.paystack.co https://www.youtube.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
@@ -45,7 +45,14 @@ const nextConfig = {
   // patch for the 2026 image-optimizer vulnerabilities: AVIF/SVG RCE, SSRF, DoS).
   images: { unoptimized: true },
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    // Signed-in pages are never kept by the browser, so reopening the site never shows an old, broken copy.
+    const noStore = [{ key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' }];
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      { source: '/dashboard/:path*', headers: noStore },
+      { source: '/admin/:path*', headers: noStore },
+      { source: '/teacher/:path*', headers: noStore }
+    ];
   }
 };
 

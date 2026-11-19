@@ -16,16 +16,21 @@ export default function GoogleSignInPage({ title, subtitle, redirectTo, notice =
     setLoading(true);
     setError('');
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithOAuth({
+    const { data, error: signInError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+        skipBrowserRedirect: true
       }
     });
-    if (signInError) {
+    if (signInError || !data?.url) {
       setLoading(false);
-      setError(signInError.message);
+      setError(signInError?.message || 'Could not start sign-in. Please try again.');
+      return;
     }
+    // replace(), not a normal redirect: the login page and the Google pages do not stay in the back-button
+    // history, so Back after signing in goes to the page you were on before, never into the sign-in flow.
+    window.location.replace(data.url);
   }
 
   return (

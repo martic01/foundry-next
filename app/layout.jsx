@@ -7,6 +7,7 @@ import ConditionalChrome from '../components/ConditionalChrome';
 import NavigationLoader from '../components/NavigationLoader';
 import { DialogProvider } from '../components/ui/DialogProvider';
 import { THEME_INIT_SCRIPT } from '../lib/theme-script';
+import { RESUME_SCRIPT } from '../lib/resume-script';
 import { SITE_URL, SITE_NAME, SITE_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, OG_IMAGE } from '../lib/seo';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -70,6 +71,10 @@ export default function RootLayout({ children }) {
             back to the OS's prefers-color-scheme when the person hasn't
             picked a theme explicitly (see lib/theme-script.js). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Safety net for a phone that reopens the site on an old or empty copy of the page: a copy restored
+            from the browser's back/forward cache is reloaded, and a page still completely empty after 6
+            seconds is reloaded once. Plain script so it works even if the app itself failed to start. */}
+        <script dangerouslySetInnerHTML={{ __html: RESUME_SCRIPT }} />
       </head>
       <body className="flex min-h-screen flex-col bg-surfaceMuted font-body text-ink antialiased">
         {/* Suspense is required here, not optional -- NavigationLoader
