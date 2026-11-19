@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { BookOpen, LayoutDashboard, Crown, LogOut } from 'lucide-react';
+import { BookOpen, Lightbulb, LayoutDashboard, Crown, LogOut } from 'lucide-react';
 import VerifyCertificate from './VerifyCertificate';
 import GoogleIcon from './icons/GoogleIcon';
 import { getUserSafe as getUser, getProfileSafe as getProfile } from '../lib/supabase/session';
@@ -26,6 +26,10 @@ export default function Nav() {
           <Link href="/#courses" className={LINK} title="Courses" aria-label="Courses">
             <BookOpen className="h-5 w-5 flex-shrink-0 sm:h-[1.25em] sm:w-[1.25em]" />
             <span className="hidden sm:inline">Courses</span>
+          </Link>
+          <Link href="/tips" className={LINK} title="Tips" aria-label="Tips">
+            <Lightbulb className="tips-nav-glow h-5 w-5 flex-shrink-0 sm:h-[1.25em] sm:w-[1.25em]" />
+            <span className="hidden sm:inline">Tips</span>
           </Link>
           <Suspense fallback={<span className="h-4 w-16 animate-pulse rounded bg-surfaceMuted" aria-hidden="true" />}>
             <NavAuth />

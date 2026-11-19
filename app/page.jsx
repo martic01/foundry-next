@@ -168,6 +168,23 @@ export default async function FoundryHome() {
         </div>
       </section>
 
+      <section id="tips" aria-labelledby="tips-home-title" className="mx-auto max-w-6xl px-6 py-10">
+        <div className="tips-home-card grid items-center gap-6 rounded-2xl border border-line bg-surface p-6 shadow-card sm:p-8 desktop:grid-cols-[1fr_auto]">
+          <div>
+            <p className="eyebrow mb-2">Free tips</p>
+            <h2 id="tips-home-title" className="font-display text-2xl font-extrabold text-ink sm:text-3xl">Design, animation, 3D and AI tips you can watch and copy</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-inkdim sm:text-base">See CSS and JavaScript animations play live, read the code beside them, explore 3D scenes, and pick up HTML and AI habits that make you a better developer. Friendly explanations, no sign-up needed.</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Link href="/tips" className="cta-btn"><Sparkles className="h-4 w-4" /> Explore the tips</Link>
+              <Link href="/register" className="cta-btn-outline">Register for a course</Link>
+            </div>
+          </div>
+          <div className="hidden gap-2 desktop:grid desktop:grid-cols-2" aria-hidden="true">
+            {['CSS', 'JS', '3D', 'AI'].map((t) => <span key={t} className="tips-tile flex h-20 w-24 items-center justify-center rounded-xl bg-gradient-to-br from-[#23252e] to-[#14151a] font-display text-xl font-extrabold text-brand">{t}</span>)}
+          </div>
+        </div>
+      </section>
+
       <WorkspaceSection contacts={contacts.workspace} />
       <EventSection contacts={contacts.event} />
 

@@ -1,6 +1,6 @@
 'use client';
 
-import SelectDate from '../ui/SelectDate';
+import DateField from '../ui/DateField';
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -155,8 +155,9 @@ export default function ExamPanel({ view }) {
                 <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} className="field mt-1 normal-case" />
               </label>
               <div className="text-xs font-medium uppercase tracking-wide text-inkdim">Day you would prefer (optional, Lagos time)
-                <div className="mt-1 max-w-sm normal-case"><SelectDate withTime label="Preferred day and time" value={preferred} onChange={setPreferred} yearFrom={new Date().getFullYear()} yearTo={new Date().getFullYear() + 1} /></div>
+                <DateField type="datetime-local" className="mt-1 max-w-xs" label="Preferred day and time" placeholder="Tap to choose a day and time" value={preferred} onChange={setPreferred} />
               </div>
+              <Err>{err}</Err>
               <div className="flex gap-2">
                 <button type="button" onClick={sendRequest} disabled={pending} className="cta-btn">{pending && <Loader2 className="h-4 w-4 animate-spin" />} Send request</button>
                 <button type="button" onClick={() => setShowReq(false)} className="cta-btn-outline">Cancel</button>

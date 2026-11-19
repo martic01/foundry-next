@@ -1,6 +1,6 @@
 'use client';
 
-import SelectDate from './ui/SelectDate';
+import DateField from './ui/DateField';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Lock, PartyPopper, CheckCircle2, Loader2, ArrowRight, ShieldCheck, Laptop } from 'lucide-react';
@@ -162,8 +162,23 @@ function DetailsStep({ course, startsText, onDone, onPriceChange }) {
   const needsGuardian = ageEligible && (calculateAge(dob) ?? 99) < 18;
   const canPay = !!user && !!nameCheck.ok && ageEligible && agreed && (!needsGuardian || guardianOk) && specsAgreed && !paying && !alreadyPaid;
 
+  const [problems, setProblems] = useState([]);
   async function handlePay() {
-    if (!canPay) return;
+    if (!canPay) {
+      // Never fail silently: say exactly what is missing and scroll to it.
+      const list = [];
+      if (!user) list.push('Sign in with Google (step 1).');
+      if (!nameCheck.ok) { setNameTouched(true); list.push(nameCheck.error || 'Enter your full name: first and last name.'); }
+      if (!dobEntered) list.push('Choose your date of birth.');
+      else if (ageIneligible) list.push(`You must be at least ${MIN_AGE} to register for this course.`);
+      if (!specsAgreed) list.push('Tick the box to confirm your laptop meets the specs.');
+      if (needsGuardian && !guardianOk) list.push('A parent or guardian must agree for students under 18.');
+      if (!agreed) list.push('Agree to the Terms and Privacy Notice.');
+      setProblems(list.length ? list : ['Please check the form and try again.']);
+      setTimeout(() => document.getElementById('pay-problems')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+      return;
+    }
+    setProblems([]);
     setPaying(true);
 
     // The name for the certificate is saved BEFORE any money moves.
@@ -336,7 +351,7 @@ function DetailsStep({ course, startsText, onDone, onPriceChange }) {
             blanket minimum age across both stages. */}
         <div className="mb-5 rounded-lg border border-line p-4">
           <p className="mb-3 text-sm font-semibold text-ink">3. Confirm your date of birth</p>
-          <SelectDate label="Date of birth" value={dob} onChange={setDob} yearFrom={new Date().getFullYear() - 100} yearTo={new Date().getFullYear()} />
+          <DateField label="Date of birth" placeholder="Tap to choose your date of birth" value={dob} onChange={setDob} max={new Date().toISOString().split('T')[0]} />
           {ageIneligible && (
             <p className="mt-2 text-xs text-red-600">
               You must be at least {MIN_AGE} to register for this course.
@@ -407,10 +422,18 @@ function DetailsStep({ course, startsText, onDone, onPriceChange }) {
             <a href="/dashboard" className="font-semibold underline">Go to your dashboard &rarr;</a>
           </div>
         ) : (
-          <button onClick={handlePay} disabled={!canPay} className="cta-btn w-full">
+          <>
+            {problems.length > 0 && !canPay && (
+              <div id="pay-problems" role="alert" className="mb-3 rounded-lg border-2 border-red-400 bg-red-50 p-3 text-left text-sm text-red-800 dark:border-red-500/60 dark:bg-red-500/10 dark:text-red-200">
+                <p className="mb-1 font-bold">Please fix the following before paying:</p>
+                <ul className="list-disc space-y-0.5 pl-5">{problems.map((p) => <li key={p}>{p}</li>)}</ul>
+              </div>
+            )}
+            <button onClick={handlePay} disabled={paying} className="cta-btn w-full">
             {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
             Pay Now
           </button>
+          </>
         )}
         <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-inkdim">
           <ShieldCheck className="h-3.5 w-3.5" /> Secured by Paystack
