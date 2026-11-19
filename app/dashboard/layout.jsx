@@ -1,11 +1,14 @@
 import { redirect } from 'next/navigation';
-import { LayoutDashboard, BookOpen, Receipt, Megaphone, Wrench, NotebookText, Compass, Award, Lock, CalendarDays } from 'lucide-react';
+import { headers } from 'next/headers';
+import { LayoutDashboard, BookOpen, Receipt, Megaphone, Wrench, NotebookText, Compass, Award, Lock, CalendarDays, ClipboardCheck } from 'lucide-react';
 import { createClient } from '../../lib/supabase/server';
 import { getUser, getProfile } from '../../lib/supabase/session';
 import { signOutAction } from '../actions';
 import PortalShell from '../../components/portal/PortalShell';
 import ClassStatusBanner from '../../components/BatchTimer';
 import { COURSES } from '../../lib/courses';
+import { createAdminClient } from '../../lib/supabase/admin';
+import { examTabVisible } from '../../lib/exam/server';
 import NotificationHost from '../../components/dashboard/NotificationHost';
 import { NOINDEX } from '../../lib/seo';
 import { installPlan } from '../../lib/installs';
@@ -75,12 +78,27 @@ export default async function DashboardLayout({ children }) {
   // column exists (supabase/8-terms.sql), so nothing breaks before that is run.
   const needsTerms = !!profile && 'terms_accepted_at' in profile && !profile.terms_accepted_at && (bannerRegs || []).some(isAdminAdded);
 
+  // The Exam tab stays hidden until the admin has switched the exam on for this student's batch.
+  const showExam = await examTabVisible(createAdminClient(), user.id, (bannerRegs || []).map((r) => ({ course: r.course, batch_id: r.batches?.id })));
+
+  // While an exam is running the student sees ONLY the exam: no menu, no notes, no pop-ups.
+  let lockdown = false;
+  try {
+    const { data: running } = await createAdminClient().from('exam_attempts').select('id').eq('user_id', user.id).eq('status', 'in_progress').gt('expires_at', new Date().toISOString()).limit(1);
+    lockdown = !!running?.length;
+  } catch { /* never block the dashboard on this check */ }
+  if (lockdown) {
+    const path = ((await headers()).get('x-pathname') || '').split('?')[0];
+    if (path && path !== '/dashboard/exam') redirect('/dashboard/exam');
+  }
+
   const navItems = [
     { href: '/dashboard', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" />, exact: true },
     { href: '/dashboard/courses', label: 'My courses', icon: <BookOpen className="h-4 w-4" /> },
     { href: '/dashboard/other-courses', label: 'Other courses', icon: <Compass className="h-4 w-4" /> },
     { href: '/dashboard/installation', label: 'Installation', icon: <Wrench className="h-4 w-4" />, badge: installationPending },
     { href: '/dashboard/timetable', label: 'Timetable', icon: <CalendarDays className="h-4 w-4" /> },
+    ...(showExam ? [{ href: '/dashboard/exam', label: 'Exam', icon: <ClipboardCheck className="h-4 w-4" /> }] : []),
     { href: '/dashboard/notes', label: 'Notes', icon: <NotebookText className="h-4 w-4" /> },
     { href: '/dashboard/certificate', label: 'Certificate', icon: certCount ? <Award className="h-4 w-4" /> : <Lock className="h-4 w-4" /> },
     { href: '/dashboard/receipts', label: 'Receipts', icon: <Receipt className="h-4 w-4" /> },
@@ -94,11 +112,12 @@ export default async function DashboardLayout({ children }) {
       userName={profile?.full_name || user.user_metadata?.full_name || user.email}
       userEmail={profile?.email || user.email}
       logoutAction={signOutAction}
+      lockdown={lockdown}
     >
-      <ClassStatusBanner batches={bannerBatches} serverNow={Date.now()} />
-      {needsTerms ? <TermsModal /> : null}
+      {!lockdown && <ClassStatusBanner batches={bannerBatches} serverNow={Date.now()} />}
+      {needsTerms && !lockdown ? <TermsModal /> : null}
       {children}
-      <NotificationHost userId={user.id} />
+      {!lockdown && <NotificationHost userId={user.id} />}
     </PortalShell>
   );
 }

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { LayoutDashboard, Users2, Wallet, GraduationCap, NotebookText, FolderOpen, Lock, Megaphone, Presentation, Award, CalendarDays, ScrollText } from 'lucide-react';
+import { LayoutDashboard, Users2, Wallet, GraduationCap, NotebookText, FolderOpen, Lock, Megaphone, Presentation, Award, CalendarDays, ScrollText, ClipboardCheck } from 'lucide-react';
 import { getUser, getProfile } from '../../lib/supabase/session';
 import { signOutAction } from '../actions';
 import PortalShell from '../../components/portal/PortalShell';
@@ -7,6 +7,8 @@ import NotificationHost from '../../components/dashboard/NotificationHost';
 import { createAdminClient } from '../../lib/supabase/admin';
 import { maybePurgeExpired } from '../../lib/purge';
 import { NOINDEX } from '../../lib/seo';
+import NotifyBar from '../../components/admin/NotifyBar';
+import { notifyMode } from '../../lib/exam/notify';
 
 export const metadata = NOINDEX;
 
@@ -38,6 +40,13 @@ export default async function AdminLayout({ children }) {
 
   maybePurgeExpired(createAdminClient).catch(() => {}); // throttled; expired items are also hidden by RLS
 
+  // Manual/auto switch for student notifications + the ones waiting to be sent (empty until file 15 is run).
+  const adb = createAdminClient();
+  const [mode, { data: waiting }] = await Promise.all([
+    notifyMode(adb),
+    adb.from('pending_notifications').select('id, label, recipients, created_at').order('created_at')
+  ]);
+
   const navItems = [
     { href: '/admin', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" />, exact: true },
     { href: '/admin/batches', label: 'Batches', icon: <GraduationCap className="h-4 w-4" /> },
@@ -47,6 +56,7 @@ export default async function AdminLayout({ children }) {
     { href: '/admin/teachers', label: 'Teachers', icon: <Presentation className="h-4 w-4" /> },
     { href: '/admin/students', label: 'Students', icon: <Users2 className="h-4 w-4" /> },
     { href: '/admin/timetable', label: 'Timetable', icon: <CalendarDays className="h-4 w-4" /> },
+    { href: '/admin/exams', label: 'Exams', icon: <ClipboardCheck className="h-4 w-4" /> },
     { href: '/admin/legal', label: 'Terms & policy', icon: <ScrollText className="h-4 w-4" /> },
     { href: '/admin/notes', label: 'Notes', icon: <NotebookText className="h-4 w-4" /> },
     { href: '/admin/certificates', label: 'Certificates', icon: <Award className="h-4 w-4" /> },
@@ -61,6 +71,7 @@ export default async function AdminLayout({ children }) {
       userEmail={profile?.email || user.email}
       logoutAction={signOutAction}
     >
+      <NotifyBar mode={mode} pending={waiting || []} />
       {children}
       <NotificationHost userId={user.id} />
     </PortalShell>

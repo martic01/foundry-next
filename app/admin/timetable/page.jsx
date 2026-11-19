@@ -1,6 +1,8 @@
 import { createClient } from '../../../lib/supabase/server';
 import { COURSES } from '../../../lib/courses';
 import { loadTimetable } from '../../../lib/timetable-server';
+import { createAdminClient } from '../../../lib/supabase/admin';
+import { examForTimetable } from '../../../lib/exam/timetable';
 import TimetableEditor from '../../../components/timetable/TimetableEditor';
 
 export const metadata = { title: 'Timetable — The Foundry' };
@@ -11,6 +13,8 @@ export default async function AdminTimetable({ searchParams }) {
   const list = (batches || []).filter((b) => !COURSES[b.course]?.contactOnly);
   const picked = list.find((b) => b.id === searchParams?.batch) || list[0];
   const t = picked ? await loadTimetable(supabase, picked.id, picked.course) : null;
+
+  const exam = picked && t ? await examForTimetable(createAdminClient(), { batchId: picked.id, course: picked.course, rows: t.rows, startDate: picked.start_date || null }) : null;
 
   return (
     <div>
@@ -37,6 +41,7 @@ export default async function AdminTimetable({ searchParams }) {
             startDate={picked.start_date || ''}
             canEditStart
             canEditRows
+            exam={exam}
             perms={{ start: !!picked.teacher_can_edit_start, timetable: !!picked.teacher_can_edit_timetable }}
           />
         </>

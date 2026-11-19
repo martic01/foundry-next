@@ -6,6 +6,7 @@ import { createAdminClient } from '../lib/supabase/admin';
 import { cleanRows, DATE_RE } from '../lib/timetable';
 import { cleanLegal, LEGAL_TAG } from '../lib/legal';
 import { LEGAL_DEFAULTS } from '../lib/legal-defaults';
+import { gBatch } from '../lib/exam/notify';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fail = (e) => { console.error('[schedule]', e?.code, e?.message); return { error: 'Something went wrong saving that. Please try again.' }; };
@@ -51,6 +52,7 @@ export async function saveTimetable(batchId, rows) {
   }
   const { error: delErr } = await db.from('batch_timetable').delete().eq('batch_id', batchId).gt('sort', c.rows.length);
   if (delErr) return fail(delErr);
+  await gBatch(db, batchId, { title: 'Your class timetable was updated', body: 'Open the Timetable tab to see the new days and times.', href: '/dashboard/timetable', kind: 'update' });
   refresh();
   return { ok: true };
 }
@@ -72,8 +74,10 @@ export async function updateBatchStart(batchId, startDate) {
   if (a.error) return a;
   if (a.role === 'teacher' && !a.flags.teacher_can_edit_start) return { error: 'The admin has not allowed you to change the start date.' };
   if (startDate && !DATE_RE.test(startDate)) return { error: 'Invalid start date.' };
-  const { error } = await createAdminClient().from('batches').update({ start_date: startDate || null }).eq('id', batchId);
+  const db = createAdminClient();
+  const { error } = await db.from('batches').update({ start_date: startDate || null }).eq('id', batchId);
   if (error) return fail(error);
+  await gBatch(db, batchId, { title: 'Your batch start date changed', body: startDate ? `New start date: ${startDate}` : 'The start date will be announced.', href: '/dashboard/timetable', kind: 'update' });
   refresh();
   return { ok: true };
 }

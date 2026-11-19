@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { LayoutDashboard, Users2, NotebookText, FolderOpen, Megaphone, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Users2, NotebookText, FolderOpen, Megaphone, CalendarDays, ClipboardCheck } from 'lucide-react';
 import { getUser, getProfile } from '../../lib/supabase/session';
 import { signOutAction } from '../actions';
 import PortalShell from '../../components/portal/PortalShell';
@@ -37,6 +37,7 @@ export default async function TeacherLayout({ children }) {
     { href: '/teacher', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" />, exact: true },
     { href: '/teacher/students', label: 'Students', icon: <Users2 className="h-4 w-4" /> },
     { href: '/teacher/timetable', label: 'Timetable', icon: <CalendarDays className="h-4 w-4" /> },
+    { href: '/teacher/exams', label: 'Exams', icon: <ClipboardCheck className="h-4 w-4" /> },
     { href: '/teacher/notes', label: 'Notes', icon: <NotebookText className="h-4 w-4" /> },
     { href: '/teacher/content', label: 'Links & videos', icon: <FolderOpen className="h-4 w-4" /> },
     { href: '/teacher/announcements', label: 'Announcements', icon: <Megaphone className="h-4 w-4" /> }

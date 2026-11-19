@@ -24,7 +24,7 @@ function initials(name) {
     .join('');
 }
 
-export default function ProfileCard({ profile, registrations = [] }) {
+export default function ProfileCard({ profile, registrations = [], exams = {} }) {
   const role = profile?.role === 'admin' ? 'admin' : profile?.role === 'teacher' ? 'teacher' : 'student';
   const roleStyle = ROLE_STYLES[role];
   const RoleIcon = roleStyle.icon;
@@ -84,6 +84,20 @@ export default function ProfileCard({ profile, registrations = [] }) {
                     }}
                   >
                     <CheckCircle2 className="h-3 w-3" /> {course.name}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Exam score per course (percentage + label) and the overall result. */}
+          {registrations.some((reg) => exams[reg.course]) && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {registrations.filter((reg) => exams[reg.course]).map((reg) => {
+                const e = exams[reg.course];
+                return (
+                  <span key={`exam-${reg.id}`} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${e.passed ? 'border-[#34d399]/40 bg-[#062f2a] text-[#34d399]' : 'border-red-400/40 bg-red-950/60 text-red-300'}`}>
+                    Exam: {e.percent}% · {e.label} · {e.passed ? 'Passed' : 'Not passed yet'}
                   </span>
                 );
               })}

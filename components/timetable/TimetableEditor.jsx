@@ -7,11 +7,12 @@ import { WEEKDAYS, TZ_LABEL, defaultTimetable, fmtTime, fmtDate } from '../../li
 import { saveTimetable, resetTimetable, updateBatchStart, setTeacherPermissions } from '../../app/schedule-actions';
 import { useDialog } from '../ui/DialogProvider';
 import TimetableView from './TimetableView';
+import ExamDateEditor from './ExamDateEditor';
 
 // Editor used by the admin (always) and by a teacher when the admin has
 // allowed it for that batch. Rows are edited as a plain list; saving
 // replaces the batch's whole timetable.
-export default function TimetableEditor({ batchId, title, course, rows: initial, isDefault, startDate: startInit, canEditStart, canEditRows, admin, perms }) {
+export default function TimetableEditor({ batchId, title, course, rows: initial, isDefault, startDate: startInit, canEditStart, canEditRows, admin, perms, exam }) {
   const router = useRouter();
   const { confirm } = useDialog();
   const [pending, start] = useTransition();
@@ -205,8 +206,10 @@ export default function TimetableEditor({ batchId, title, course, rows: initial,
         </div>
       </>)}
 
+      {admin && exam && <ExamDateEditor key={exam.startsAt} batchId={batchId} exam={exam} />}
+
       <p className="mb-2 text-sm font-semibold text-ink">{canEditRows ? 'Saved timetable' : 'Timetable'}</p>
-      <TimetableView rows={base} isDefault={false} startDate={baseStart || null} title={title} />
+      <TimetableView rows={base} isDefault={false} startDate={baseStart || null} title={title} exam={exam} />
     </div>
   );
 }

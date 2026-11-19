@@ -1,12 +1,16 @@
 'use client';
 
 import { Download, CalendarPlus, Printer } from 'lucide-react';
-import { WEEKDAYS, TZ_LABEL, fmtRange, fmtDate, withDates, groupByWeek, buildIcs } from '../../lib/timetable';
+import { fmtWat } from '../../lib/exam/time';
+import { WEEKDAYS, TZ_LABEL, fmtRange, fmtDate, withDates, groupByWeek, buildIcs, breakRange, BREAK_MINUTES } from '../../lib/timetable';
 
 // Read-only timetable (students, teachers, and the admin's preview).
 // Table on wide screens, cards on phones; "Download PDF" prints just this
 // block (the browser's Save as PDF), "Add to calendar" downloads an .ics.
-export default function TimetableView({ rows, startDate, title, subtitle, isDefault }) {
+const lagos = (iso, opt) => new Date(iso).toLocaleString('en-GB', { timeZone: 'Africa/Lagos', ...opt });
+const clock = (iso) => lagos(iso, { hour: 'numeric', minute: '2-digit', hour12: true });
+
+export default function TimetableView({ rows, startDate, title, subtitle, isDefault, exam }) {
   const dated = withDates(rows, startDate);
   const weeks = groupByWeek(dated);
   const hasDates = dated.some((r) => r.date);
@@ -19,7 +23,7 @@ export default function TimetableView({ rows, startDate, title, subtitle, isDefa
     window.print();
   }
   function ics() {
-    const blob = new Blob([buildIcs(rows, { title, startDate })], { type: 'text/calendar;charset=utf-8' });
+    const blob = new Blob([buildIcs(rows, { title, startDate, exam })], { type: 'text/calendar;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-timetable.ics`;
@@ -57,7 +61,7 @@ export default function TimetableView({ rows, startDate, title, subtitle, isDefa
                     <tr key={r.sort} className="border-t border-line align-top">
                       <td className="whitespace-nowrap px-3 py-2 font-medium text-ink">{WEEKDAYS[r.weekday]}</td>
                       {hasDates && <td className="whitespace-nowrap px-3 py-2 text-inkdim">{fmtDate(r.date)}</td>}
-                      <td className="whitespace-nowrap px-3 py-2 text-ink">{fmtRange(r)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-ink">{fmtRange(r)}{breakRange(r) && <span className="block text-[11px] text-inkdim">{BREAK_MINUTES}-min break {breakRange(r)}</span>}</td>
                       <td className="px-3 py-2 text-ink">{r.topic}{r.note && <span className="block text-xs text-inkdim">{r.note}</span>}</td>
                     </tr>
                   ))}
@@ -70,6 +74,7 @@ export default function TimetableView({ rows, startDate, title, subtitle, isDefa
                 <li key={r.sort} className="card p-3">
                   <p className="text-sm font-semibold text-ink">{WEEKDAYS[r.weekday]}{r.date ? ` · ${fmtDate(r.date)}` : ''}</p>
                   <p className="text-sm text-brand-dark">{fmtRange(r)}</p>
+                  {breakRange(r) && <p className="text-xs text-inkdim">{BREAK_MINUTES}-min break {breakRange(r)}</p>}
                   <p className="mt-1 break-words text-sm text-ink">{r.topic}</p>
                   {r.note && <p className="text-xs text-inkdim">{r.note}</p>}
                 </li>
@@ -77,6 +82,38 @@ export default function TimetableView({ rows, startDate, title, subtitle, isDefa
             </ul>
           </section>
         ))}
+        {exam && (() => {
+          const end = new Date(Date.parse(exam.startsAt) + (exam.durationMinutes || 120) * 60000).toISOString();
+          const note = exam.provisional ? 'Provisional: a week after the last class. The school will confirm the exact date and time.' : exam.personal ? 'Your own exam date.' : 'Confirmed by the school.';
+          return (
+            <section className="mb-5 break-inside-avoid">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-dark">Final exam</h3>
+              <div className="card hidden overflow-hidden desktop:block print:block">
+                <table className="w-full text-sm">
+                  <thead className="bg-surfaceMuted text-left text-xs uppercase tracking-wide text-inkdim">
+                    <tr><th className="px-3 py-2">Day</th><th className="px-3 py-2">Date</th><th className="px-3 py-2">Time</th><th className="px-3 py-2">Topic</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-line bg-brand/5 align-top">
+                      <td className="whitespace-nowrap px-3 py-2 font-medium text-ink">{lagos(exam.startsAt, { weekday: 'long' })}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-inkdim">{lagos(exam.startsAt, { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-ink">{clock(exam.startsAt)} – {clock(end)}</td>
+                      <td className="px-3 py-2 text-ink">Final exam<span className="block text-xs text-inkdim">{note}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <ul className="desktop:hidden print:hidden">
+                <li className="card border-brand/40 p-3">
+                  <p className="text-sm font-semibold text-ink">{lagos(exam.startsAt, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                  <p className="text-sm text-brand-dark">{clock(exam.startsAt)} – {clock(end)}</p>
+                  <p className="mt-1 text-sm text-ink">Final exam</p>
+                  <p className="text-xs text-inkdim">{note}</p>
+                </li>
+              </ul>
+            </section>
+          );
+        })()}
         {isDefault && <p className="tt-noprint text-xs text-inkdim">This is the standard schedule for the course. It will update if the school changes it.</p>}
       </div>
     </div>

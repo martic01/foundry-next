@@ -15,6 +15,8 @@ import { parseExpiry } from '../../lib/expiry';
 import { randomInt } from 'node:crypto';
 import { parsePriceInput, effectivePrice } from '../../lib/pricing';
 import { SITE_CONTACT_KEYS, SITE_CONTACTS_TAG, isValidPhone, isValidEmail } from '../../lib/site-contacts';
+import { gUsers, gBatch } from '../../lib/exam/notify';
+import { deleteProofForUser } from '../../lib/exam/proof';
 import { certificateTitleFor, CODE_ALPHABET, CODE_LENGTH, validateCertificateName } from '../../lib/certificates';
 import { destroyCloudinaryVideo, publicIdFromCloudinaryUrl, getCloudinaryVideoCreatedAt, signVideoUpload, videoFolderFor } from '../../lib/cloudinary-server';
 
@@ -118,6 +120,7 @@ export async function removeFromBatch(registrationId) {
     .update({ status: 'removed', batch_id: null })
     .eq('id', registrationId);
   if (error) return { error: dbError(error) };
+  if (reg?.user_id) await gUsers(createAdminClient(), [reg.user_id], { title: 'You were removed from your batch', body: 'Contact the school if you think this is a mistake.', href: '/dashboard', kind: 'update' });
   // 'layout' revalidates every page nested under that layout in one call
   // -- Batches, Students (course list changes), Overview (counts), and
   // Payments (this registration drops off the ledger) all live under
@@ -149,6 +152,9 @@ export async function setRegistrationBlocked(registrationId, blocked) {
         : dbError(error)
     };
   }
+  await gUsers(createAdminClient(), [reg.user_id], blocked
+    ? { title: 'Your access to a course was restricted', body: 'Contact the school for details.', href: '/dashboard', kind: 'update' }
+    : { title: 'Your access to a course was restored', href: '/dashboard', kind: 'update' });
   revalidatePath('/admin', 'layout');
   revalidatePath('/dashboard', 'layout');
   return { ok: true };
@@ -184,6 +190,9 @@ export async function setBlocked(profileId, blocked) {
     .update({ blocked })
     .eq('id', profileId);
   if (error) return { error: dbError(error) };
+  await gUsers(createAdminClient(), [profileId], blocked
+    ? { title: 'Your account was restricted', body: 'Contact the school for details.', href: '/dashboard', kind: 'update' }
+    : { title: 'Your account access was restored', href: '/dashboard', kind: 'update' });
   revalidatePath('/admin', 'layout');
   revalidatePath('/dashboard', 'layout');
   return { ok: true };
@@ -240,6 +249,7 @@ export async function updateBatchDetails(batchId, { label, startDate, capacity, 
 
   const patch = { label: name, start_date: startDate || null };
   const supabase = await createClient();
+  const { data: prevBatch } = await supabase.from('batches').select('start_date').eq('id', batchId).maybeSingle();
 
   if (capacity !== undefined) {
     const cap = Number(capacity);
@@ -256,6 +266,9 @@ export async function updateBatchDetails(batchId, { label, startDate, capacity, 
 
   const { error } = await supabase.from('batches').update(patch).eq('id', batchId);
   if (error) return { error: dbError(error) };
+  if (prevBatch && (prevBatch.start_date || null) !== (startDate || null)) {
+    await gBatch(createAdminClient(), batchId, { title: 'Your batch start date changed', body: startDate ? `New start date: ${startDate}` : 'The start date will be announced.', href: '/dashboard/timetable', kind: 'update' });
+  }
   refreshEverything();
   return { ok: true };
 }
@@ -519,6 +532,8 @@ export async function moveStudentToBatch(registrationId, targetBatchId) {
 
   const { error } = await supabase.from('registrations').update({ batch_id: target.id }).eq('id', registrationId);
   if (error) return { error: dbError(error) };
+  const { data: mv } = await supabase.from('registrations').select('user_id').eq('id', registrationId).maybeSingle();
+  if (mv?.user_id) await gUsers(createAdminClient(), [mv.user_id], { title: `You were moved to ${target.label}`, body: 'Check your timetable for the new class days and times.', href: '/dashboard/timetable', kind: 'update' });
   refreshEverything();
   return { ok: true };
 }
@@ -535,7 +550,7 @@ export async function moveStudentsToBatch(registrationIds, targetBatchId) {
 
   const supabase = await createClient();
   const [{ data: regs }, { data: target }] = await Promise.all([
-    supabase.from('registrations').select('id, course, batch_id, status').in('id', parsed.ids),
+    supabase.from('registrations').select('id, user_id, course, batch_id, status').in('id', parsed.ids),
     supabase.from('batches').select('id, course, capacity, label').eq('id', targetBatchId).maybeSingle()
   ]);
   if (!target) return { error: 'That batch no longer exists.' };
@@ -558,6 +573,7 @@ export async function moveStudentsToBatch(registrationIds, targetBatchId) {
 
   const { error } = await supabase.from('registrations').update({ batch_id: target.id }).in('id', moving);
   if (error) return { error: dbError(error) };
+  await gUsers(createAdminClient(), regs.filter((r) => moving.includes(r.id)).map((r) => r.user_id), { title: `You were moved to ${target.label}`, body: 'Check your timetable for the new class days and times.', href: '/dashboard/timetable', kind: 'update' });
   refreshEverything();
   return { ok: true, moved: moving.length };
 }
@@ -1308,6 +1324,10 @@ export async function adminDeleteStudent(profileId) {
 
   const admin = createAdminClient();
   if (await isAdminAccount(admin, profileId)) return { error: 'An admin account can\u2019t be deleted.' };
+  // A student's own messages (e.g. exam requests) would otherwise block the delete; clear them first.
+  const { data: who } = await admin.from('profiles').select('role').eq('id', profileId).maybeSingle();
+  if (who?.role === 'student') await admin.from('messages').delete().eq('sender_id', profileId);
+  await deleteProofForUser(admin, profileId); // camera/microphone files live in storage, so they are removed first
   const { error } = await admin.auth.admin.deleteUser(profileId);
   if (error) return { error: dbError(error) };
 

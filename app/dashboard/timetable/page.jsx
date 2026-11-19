@@ -2,6 +2,8 @@ import { createClient } from '../../../lib/supabase/server';
 import { getUser } from '../../../lib/supabase/session';
 import { COURSES } from '../../../lib/courses';
 import { loadTimetable } from '../../../lib/timetable-server';
+import { createAdminClient } from '../../../lib/supabase/admin';
+import { examForTimetable } from '../../../lib/exam/timetable';
 import TimetableView from '../../../components/timetable/TimetableView';
 
 export const metadata = { title: 'Timetable — The Foundry' };
@@ -18,7 +20,8 @@ export default async function StudentTimetable() {
 
   const blocks = await Promise.all(mine.map(async (r) => {
     const t = r.batch_id ? await loadTimetable(supabase, r.batch_id, r.course) : null;
-    return { r, t };
+    const exam = t ? await examForTimetable(createAdminClient(), { batchId: r.batch_id, userId: user.id, course: r.course, rows: t.rows, startDate: r.batches?.start_date || null }) : null;
+    return { r, t, exam };
   }));
 
   return (
@@ -28,7 +31,7 @@ export default async function StudentTimetable() {
       <p className="mb-6 text-sm text-inkdim">When your live classes hold. You can download it or add it to your calendar.</p>
       {!blocks.length && <div className="card p-6 text-sm text-inkdim">No active registrations found on this account.</div>}
       <div className="space-y-10">
-        {blocks.map(({ r, t }) => (
+        {blocks.map(({ r, t, exam }) => (
           <div key={r.course}>
             {!t ? (
               <div className="card p-5 text-sm text-inkdim">You have not been placed in a batch for {COURSES[r.course]?.name} yet. Your timetable will show here once you are.</div>
@@ -36,6 +39,7 @@ export default async function StudentTimetable() {
               <TimetableView
                 rows={t.rows}
                 isDefault={t.isDefault}
+                exam={exam}
                 startDate={r.batches?.start_date || null}
                 title={COURSES[r.course]?.name || r.course}
                 subtitle={r.batches?.label ? `${r.batches.label}${r.batches.start_date ? '' : ' · start date to be announced'}` : ''}

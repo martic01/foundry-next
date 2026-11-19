@@ -7,6 +7,8 @@ import ProfileCard from '../../components/dashboard/ProfileCard';
 import EnrollmentCard from '../../components/dashboard/EnrollmentCard';
 import InstallReminderModal from '../../components/dashboard/InstallReminderModal';
 import { installPlan } from '../../lib/installs';
+import { createAdminClient } from '../../lib/supabase/admin';
+import { examSummaries } from '../../lib/exam/server';
 
 export const metadata = { title: 'Overview — The Foundry' };
 
@@ -38,7 +40,7 @@ export default async function DashboardOverviewPage() {
         Welcome back{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}
       </h1>
 
-      <ProfileCard profile={profile} registrations={registrations || []} />
+      <ProfileCard profile={profile} registrations={registrations || []} exams={await examSummaries(createAdminClient(), user.id)} />
 
       {!registrations?.length ? (
         <div className="card p-6 text-sm text-inkdim">No active registrations found on this account.</div>

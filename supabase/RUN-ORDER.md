@@ -28,3 +28,16 @@ Run these in the Supabase SQL editor. Every file is safe to re-run.
 | `7-auto-close.sql` | Registration closes automatically at 50 seats or when the class timer starts (per-course switch) |
 
 | `11-timetable-legal.sql` | Class timetable per batch, teacher edit permissions, course start date/time on cards, editable Terms & Privacy (run once after 10) |
+
+| `12-exams.sql` | Exam system: schedules, attempts, paid retakes, reschedule requests, teacher exam-view permission (run once after 11) |
+
+| `13-exam-settings.sql` | Admin can set exam length and questions per section (run once after 12) |
+
+| `14-exam-alerts.sql` | One reschedule request per attempt, private announcements, alert de-duplication (run once after 13) |
+| `15-notify-lockdown.sql` | Manual/auto notifications (pending list) and exam full-screen penalty counter (run once after 14) |
+
+| `16-retake-fee.sql` | Admin-set exam retake fee per batch (run once after 15) |
+
+| `17-delete-and-proctor.sql` | Fixes deleting a student (everything goes with them) + exam camera/microphone storage (run once after 16) |
+
+| `18-proof-retention.sql` | Admin-set retention for exam camera/microphone captures (run once after 17) |

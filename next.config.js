@@ -4,7 +4,7 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(self "https://js.paystack.co")' },
+  { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=(), payment=(self "https://js.paystack.co")' },
   // frame-ancestors is the modern clickjacking guard. A full script-src CSP
   // is not set: Next.js inline scripts + the Paystack widget need a
   // nonce-based setup; add it deliberately and test the payment flow.
@@ -25,7 +25,7 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://checkout.paystack.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com https://*.supabase.co https://lh3.googleusercontent.com https://*.paystack.co https://*.paystack.com",
-      "media-src 'self' blob: https://res.cloudinary.com",
+      "media-src 'self' blob: https://res.cloudinary.com https://*.supabase.co",
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cloudinary.com https://*.paystack.co https://*.paystack.com",
       "frame-src https://checkout.paystack.com https://js.paystack.co https://www.youtube.com",

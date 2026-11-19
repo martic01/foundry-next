@@ -3,6 +3,8 @@ import { getUser } from '../../../lib/supabase/session';
 import { getTeacherBatches, shortCourseName } from '../../../lib/teacher';
 import { COURSES } from '../../../lib/courses';
 import { loadTimetable } from '../../../lib/timetable-server';
+import { createAdminClient } from '../../../lib/supabase/admin';
+import { examForTimetable } from '../../../lib/exam/timetable';
 import TimetableView from '../../../components/timetable/TimetableView';
 import TimetableEditor from '../../../components/timetable/TimetableEditor';
 import NoBatches from '../../../components/teacher/NoBatches';
@@ -17,7 +19,11 @@ export default async function TeacherTimetable() {
   // (database file 11 not run yet) cannot break the page.
   const flagRes = batches.length ? await supabase.from('batches').select('id, teacher_can_edit_start, teacher_can_edit_timetable').in('id', batches.map((b) => b.id)) : { data: [] };
   const flags = Object.fromEntries((flagRes.data || []).map((f) => [f.id, f]));
-  const blocks = await Promise.all(batches.map(async (b) => ({ b, t: await loadTimetable(supabase, b.id, b.course) })));
+  const blocks = await Promise.all(batches.map(async (b) => {
+    const t = await loadTimetable(supabase, b.id, b.course);
+    const exam = await examForTimetable(createAdminClient(), { batchId: b.id, course: b.course, rows: t.rows, startDate: b.start_date || null });
+    return { b, t, exam };
+  }));
 
   return (
     <div>
@@ -26,16 +32,16 @@ export default async function TeacherTimetable() {
       <p className="mb-6 text-sm text-inkdim">Class days and times for the batches you teach. If the admin has allowed it, you can edit them here.</p>
       {!batches.length ? <NoBatches /> : (
         <div className="space-y-12">
-          {blocks.map(({ b, t }) => {
+          {blocks.map(({ b, t, exam }) => {
             const f = flags[b.id] || {};
             const title = `${COURSES[b.course]?.name || shortCourseName(b.course)} · ${b.label}`;
             return (
               <div key={b.id}>
                 {(f.teacher_can_edit_start || f.teacher_can_edit_timetable) ? (
                   <TimetableEditor batchId={b.id} title={title} course={b.course} rows={t.rows} isDefault={t.isDefault} startDate={b.start_date || ''}
-                    canEditStart={!!f.teacher_can_edit_start} canEditRows={!!f.teacher_can_edit_timetable} />
+                    canEditStart={!!f.teacher_can_edit_start} canEditRows={!!f.teacher_can_edit_timetable} exam={exam} />
                 ) : (
-                  <TimetableView rows={t.rows} isDefault={false} startDate={b.start_date || null} title={title} subtitle={b.start_date ? '' : 'Start date not set yet'} />
+                  <TimetableView rows={t.rows} isDefault={false} startDate={b.start_date || null} title={title} exam={exam} subtitle={b.start_date ? '' : 'Start date not set yet'} />
                 )}
               </div>
             );

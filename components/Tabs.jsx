@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 // Generic tab strip. The Installation page nests it two levels deep (OS
 // tabs, and inside each OS a second Tabs for VS Code / Git), and the
@@ -16,16 +16,37 @@ import { useId, useRef, useState } from 'react';
 //     doesn't pay for panels nobody looked at.
 //   * Leaving a tab pauses any <video>/<audio> in it, since a hidden
 //     panel would otherwise keep playing sound.
-export default function Tabs({ tabs, defaultKey }) {
+// Optional unread dots: give a tab a `latest` (ISO time of its newest item) and the strip a `seenKey`.
+// A dot shows on a tab whose newest item is newer than the last time this person opened that tab
+// (remembered on this device only); opening the tab clears it.
+export default function Tabs({ tabs, defaultKey, seenKey }) {
   const baseId = useId();
   const [active, setActive] = useState(defaultKey || tabs[0]?.key);
   const [visited, setVisited] = useState(() => new Set([defaultKey || tabs[0]?.key]));
+  const [seen, setSeen] = useState(null); // null until read on the client (no dots on the server render)
   const panelRefs = useRef({});
   const tabRefs = useRef({});
 
   // If the active tab disappears (a filtered list changed the tab set),
   // fall back to the first one rather than rendering nothing.
   const activeKey = tabs.some((t) => t.key === active) ? active : tabs[0]?.key;
+
+  const storeKey = seenKey ? `tabs-seen:${seenKey}` : null;
+  useEffect(() => {
+    if (!storeKey) return;
+    try { setSeen(JSON.parse(localStorage.getItem(storeKey) || '{}') || {}); } catch { setSeen({}); }
+  }, [storeKey]);
+  useEffect(() => {
+    if (!storeKey || seen === null) return;
+    const t = tabs.find((x) => x.key === activeKey);
+    const stamp = Math.max(Date.now(), Date.parse(t?.latest || '') || 0);
+    const prev = seen[activeKey] || 0;
+    if (prev && !(Date.parse(t?.latest || '') > prev)) return; // already up to date
+    const next = { ...seen, [activeKey]: stamp };
+    try { localStorage.setItem(storeKey, JSON.stringify(next)); } catch { /* ignore */ }
+    setSeen(next);
+  }, [activeKey, seen, storeKey, tabs]);
+  const unread = (t) => seen !== null && t.key !== activeKey && !!t.latest && Date.parse(t.latest) > (seen[t.key] || 0);
 
   function select(key) {
     if (key === activeKey) return;
@@ -70,6 +91,7 @@ export default function Tabs({ tabs, defaultKey }) {
             }`}
           >
             {t.label}
+            {unread(t) && <span className="ml-2 inline-block h-2 w-2 rounded-full bg-brand align-middle" aria-label="Unread" />}
           </button>
         ))}
       </div>

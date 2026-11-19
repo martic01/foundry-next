@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { isValidPaystackSignature } from '../../../../lib/paystack';
 import { finalizePayment } from '../../../../lib/finalize-payment';
+import { finalizeExamPayment, EXAM_REF_PREFIX } from '../../../../lib/exam/pay';
+import { createAdminClient } from '../../../../lib/supabase/admin';
 
 // Paystack calls this itself when a payment succeeds, even if the student
 // closed the tab before the browser could confirm it. Set the URL in the
@@ -17,7 +19,8 @@ export async function POST(request) {
   try { event = JSON.parse(raw); } catch { return NextResponse.json({ ok: true }); }
 
   if (event?.event === 'charge.success' && typeof event.data?.reference === 'string') {
-    const result = await finalizePayment(event.data.reference);
+    const ref = event.data.reference;
+    const result = ref.startsWith(EXAM_REF_PREFIX) ? await finalizeExamPayment(createAdminClient(), ref) : await finalizePayment(ref);
     // A temporary failure answers 500 so Paystack retries later. Anything
     // permanent is already flagged for the admin, so answer 200 to stop retries.
     if (!result.ok && result.retryable) return NextResponse.json({ error: result.error }, { status: 500 });

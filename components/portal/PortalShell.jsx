@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X, LogOut } from 'lucide-react';
+import ThemeToggle from '../ThemeToggle';
+import RefreshFab from '../RefreshFab';
 
 // One shell, used by both app/dashboard/layout.jsx and
 // app/admin/layout.jsx -- each passes its own navItems + role label, so
@@ -13,9 +15,12 @@ import { Menu, X, LogOut } from 'lucide-react';
 // `icon: <BookOpen className="h-4 w-4" />`), not component references --
 // a bare component reference can't cross the server/client boundary as a
 // prop, but an already-rendered element can.
-export default function PortalShell({ navItems, roleLabel, userName, userEmail, logoutAction, children }) {
+export default function PortalShell({ navItems, roleLabel, userName, userEmail, logoutAction, lockdown = false, children }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+
+  // During an exam nothing but the exam is on screen: no sidebar, top bar or refresh button.
+  if (lockdown) return <div className="min-h-screen bg-surfaceMuted">{children}</div>;
 
   const isActive = (item) => (item.exact ? pathname === item.href : pathname.startsWith(item.href));
 
@@ -102,6 +107,10 @@ export default function PortalShell({ navItems, roleLabel, userName, userEmail, 
               top progress bar shows for this specific form (it navigates
               away) without showing for every other form in the admin/
               dashboard portal (most stay on the same page). */}
+          <div className="mt-3 flex items-center justify-between gap-2 px-1">
+            <span className="text-xs font-medium text-inkdim">Theme</span>
+            <ThemeToggle />
+          </div>
           <form action={logoutAction} className="mt-3" data-nav-loading="true">
             <button
               type="submit"
@@ -116,6 +125,7 @@ export default function PortalShell({ navItems, roleLabel, userName, userEmail, 
       <main className="min-w-0 flex-1 px-4 py-8 sm:px-8 md:py-10">
         <div className="mx-auto max-w-5xl">{children}</div>
       </main>
+      <RefreshFab />
     </div>
   );
 }

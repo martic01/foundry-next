@@ -68,6 +68,7 @@ export async function POST(request) {
     return NextResponse.json({ accessCode: tx.access_code, reference, priceNow });
   } catch (err) {
     await admin.from('payment_intents').delete().eq('reference', reference).eq('status', 'pending');
-    return NextResponse.json({ error: err.message }, { status: 502 });
+    console.error('[pay-init]', err?.message);
+    return NextResponse.json({ error: 'Payment could not be started. Please try again shortly.' }, { status: 502 });
   }
 }

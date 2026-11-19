@@ -133,3 +133,44 @@ Scope: all code added since the first review (server-started Paystack payments, 
 3. Any line starting "Content Security Policy" / "Refused to ..." is something the policy would block. Add that host to the matching list in `next.config.js` (script-src, img-src, connect-src, frame-src...) and repeat until the console is clean.
 4. In Vercel > Settings > Environment Variables add `CSP_ENFORCE` = `1` (Production), redeploy.
 5. Check payment and sign-in once on the live site. If anything breaks, delete the variable and redeploy: you are back to report-only in one minute.
+
+---
+
+# Security review 3: 19 Nov 2026 (exam, monitoring, notifications, resilience)
+
+Scope: everything added for the exam (attempts, retake payments, lockdown, camera/mic proof, reschedules, invalidation), notifications, the earlier routes re-checked, error handling, abuse and failure behaviour, backup and recovery. Read-only review plus fixes; no live database, browser or Paystack call was available, so Row Level Security and payments were read, not exercised.
+
+## Fixed in this version
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| 1 | Medium | The early-submit lock (first 10 minutes) trusted a browser flag `auto`; a student calling the action directly could submit early | The server ignores the flag: only a real time-up (or the 3rd violation, which has its own path) is automatic |
+| 2 | Medium | The "3rd violation" auto-submit could be voided and refunded as a "paid attempt under 10 minutes" | Violation submits are flagged `forced` and always stand |
+| 3 | Low | "Clear my answer" did not save: the server skipped `null`, so the old answer came back | `null` now deletes the saved answer |
+| 4 | Low | No cap on camera/mic files per attempt (storage abuse within the rate limit) | Hard cap of 400 files per attempt |
+| 5 | Low | Payment start routes returned the payment provider's error text to the browser | Logged on the server; generic message shown |
+
+## Checked and fine
+- Every exported server action in `exam-actions.js`, `notify-actions.js`, `schedule-actions.js` calls an admin/student/teacher check first; students must be role `student` and not blocked; teachers are limited to their own batches.
+- The answer key is never stored in `exam_attempts` (only question ids and option order) and the question bank is imported by server code only, so a student cannot read answers through the database API or the page bundle.
+- `exam_attempts`, `exam_payments`, `exam_reschedule_requests`: RLS on, select own/admin only, insert/update/delete revoked from client roles. `exam_proctor_media`: RLS on with no policies (server only); the storage bucket is private and admins get one-hour signed links.
+- Retake payments: amount set by the server, checked against Paystack (amount, currency, owner); webhook signature (HMAC-SHA512, constant time) then re-verified with Paystack; safe to run twice; amount mismatch is flagged `needs_review`.
+- Uploads: signed-in, own running attempt only, file type and size checked, rate limited (shared database counter), per-attempt cap.
+- Cron route needs `CRON_SECRET` (constant-time compare). Certificate check is rate limited and masks emails. JSON-LD escapes `<`. No `dangerouslySetInnerHTML` with user data.
+- Notification links are restricted to this site by a database rule.
+- Errors: server actions log details and return generic messages; `app/error.jsx` shows a friendly screen; answers are kept on the device and retried until the network returns; the timer follows the server clock; submit retries with back-off.
+
+## Honest limits (cannot be fully solved in a browser)
+- **Lockdown is deterrence, not a wall.** Full screen, tab-switch strikes, blocked shortcuts and the console check run in the student's own browser, so a determined person can bypass them (second device, virtual machine, modified browser). The real protections are on the server: random question order per attempt, no answer key on the device, timer and submit rules enforced server-side, and the camera/mic record for review.
+- Camera and mic recording only shows what the camera sees. It does not prove who is behind it.
+- Next.js 14 no longer receives security patches (14.2.35 is the last). Plan the upgrade to a supported major version.
+
+## Do these on your side
+1. Run SQL files 14 to 18 if not yet done (they hold the new tables and rules).
+2. **Turn on backups**: Supabase dashboard, Database, Backups. Daily backups are on paid plans; Point-in-Time Recovery is the real safety net for a live exam system. Also export the database yourself before each exam week.
+3. Commit a `package-lock.json` (run `npm install` once locally and keep the file), then deploy with `npm ci`, and run `npm audit` regularly.
+4. Set `CSP_ENFORCE=1` in the host once you have clicked through sign-in, payment, video and an exam with the browser console open and seen no violations.
+5. Host firewall: add a rate-limit rule on `/api/*` and on server action posts; turn on bot protection for `/login`.
+6. Supabase Auth: allow only the sign-in methods you use, strict redirect URL list, and keep the service-role key only in the host's environment variables (never in the browser or a zip).
+7. Rotate any key that has ever been pasted into a chat, a ticket or an email.
+8. Test the webhook: Paystack dashboard, send a test event, confirm a 200.
+9. Make sure only you hold admin accounts; admin role can only be set from the SQL editor.
