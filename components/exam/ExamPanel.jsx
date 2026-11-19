@@ -147,10 +147,14 @@ export default function ExamPanel({ view }) {
       {canAsk && (
         <div className="card p-5">
           {!showReq ? (
-            <button type="button" onClick={() => setShowReq(true)} className="cta-btn-outline"><CalendarClock className="h-4 w-4" /> Ask to move my exam date</button>
+            <div className="space-y-2">
+              <button type="button" onClick={() => setShowReq(true)} className="cta-btn-outline"><CalendarClock className="h-4 w-4" /> Ask to move my exam date</button>
+              <p className="text-xs text-inkdim">You can only ask for <strong>one</strong> reschedule for each attempt.</p>
+            </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-inkdim">You can ask <strong>once for each attempt</strong> (this is attempt {nextNo}). The school decides and will tell you. Exams normally start at 6:00 PM Lagos time.</p>
+              <p role="note" className="rounded-md border border-amber-500/60 bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-100">Only one reschedule request is allowed for each attempt. Once you send it, you cannot send another for this attempt (attempt {nextNo}), so choose your reason and day carefully.</p>
+              <p className="text-sm text-inkdim">The school decides and will tell you. Exams normally start at 6:00 PM Lagos time.</p>
               <label className="block text-xs font-medium uppercase tracking-wide text-inkdim">Reason
                 <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} className="field mt-1 normal-case" />
               </label>
@@ -168,7 +172,7 @@ export default function ExamPanel({ view }) {
       )}
       {request && (
         <p className="rounded-lg border border-line p-3 text-sm text-inkdim">
-          Reschedule request for attempt {nextNo}: <strong className="text-ink">{request.status}</strong>{request.admin_note ? ` · ${request.admin_note}` : ''}
+          Reschedule request for attempt {nextNo}: <strong className="text-ink">{request.status}</strong>{request.admin_note ? ` · ${request.admin_note}` : ''}. You have used your one request for this attempt.
         </p>
       )}
 

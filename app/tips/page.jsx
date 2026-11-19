@@ -31,12 +31,12 @@ function Heading({ id }) {
 }
 
 function Tips({ id }) {
-  return <div className="grid gap-5 sm:grid-cols-2 desktop:grid-cols-3">{TIPS[id].map((t, i) => <Reveal key={t.title} className="h-full" delay={(i % 3) * 90}><TipCard {...t} /></Reveal>)}</div>;
+  return <div className="grid grid-cols-[minmax(0,1fr)] gap-5 sm:grid-cols-2 desktop:grid-cols-3">{TIPS[id].map((t, i) => <Reveal key={t.title} className="h-full min-w-0" delay={(i % 3) * 90}><TipCard {...t} /></Reveal>)}</div>;
 }
 
 export default function TipsPage() {
   return (
-    <main>
+    <main className="overflow-x-clip">
       <section className="mx-auto max-w-6xl px-6 pb-6 pt-14">
         <p className="eyebrow mb-3">Free tips</p>
         <h1 className="max-w-3xl font-display text-3xl font-extrabold leading-tight text-ink sm:text-5xl">Learn by watching it move, then copy the code.</h1>

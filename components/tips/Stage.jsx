@@ -73,14 +73,14 @@ export function CodeBox({ code, lang }) {
     try { await navigator.clipboard.writeText(code); setDone(true); setTimeout(() => setDone(false), 1500); } catch { /* clipboard blocked */ }
   }
   return (
-    <div className="relative h-full min-w-0 bg-[#0d0e12]">
+    <div className="relative h-full min-w-0 max-w-full overflow-hidden bg-[#0d0e12]">
       <div className="flex items-center justify-between border-b border-white/10 px-3 py-1.5 text-[11px] uppercase tracking-wide text-white/60">
         <span>{lang}</span>
         <button type="button" onClick={copy} className="inline-flex items-center gap-1 rounded px-2 py-0.5 hover:bg-white/10" aria-label="Copy code">
           {done ? <><Check className="h-3.5 w-3.5" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
         </button>
       </div>
-      <pre className="max-h-[22rem] overflow-auto p-3 text-[12px] leading-relaxed text-[#e6e6ea]" tabIndex={0}><code>{code}</code></pre>
+      <pre className="max-h-[22rem] max-w-full overflow-auto whitespace-pre p-3 text-[12px] leading-relaxed text-[#e6e6ea]" tabIndex={0}><code>{code}</code></pre>
     </div>
   );
 }
@@ -94,7 +94,7 @@ export function DemoCard({ title, text, code, lang = 'code', children }) {
   const [tab, setTab] = useState('preview');
   const active = inView && pageOn && (desktop || tab === 'preview');
   return (
-    <article ref={ref} className="tip-lift overflow-hidden rounded-xl border border-line bg-surface shadow-card">
+    <article ref={ref} className="tip-lift min-w-0 max-w-full overflow-hidden rounded-xl border border-line bg-surface shadow-card">
       <div className="p-4 pb-3">
         <h3 className="font-display text-base font-bold text-ink">{title}</h3>
         <p className="mt-1 text-sm leading-relaxed text-inkdim">{text}</p>
