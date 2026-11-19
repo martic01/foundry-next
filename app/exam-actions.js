@@ -129,7 +129,7 @@ export async function requestReschedule({ reason, preferred }) {
   const s = await student();
   if (s.error) return s;
   const text = String(reason || '').trim();
-  if (text.length < 3 || text.length > 500) return { error: 'Please give a short reason (3 to 500 characters).' };
+  if (text.split(/\s+/).filter(Boolean).length < 3 || text.length > 500) return { error: 'Please explain your reason in at least 3 words (up to 500 characters).' };
   const pref = preferred ? watToIso(preferred) : null;
   if (preferred && !pref) return { error: 'Invalid date.' };
   if (pref && Date.parse(pref) <= Date.now()) return { error: 'Pick a day in the future.' };

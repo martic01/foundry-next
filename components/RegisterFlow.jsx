@@ -1,5 +1,6 @@
 'use client';
 
+import SelectDate from './ui/SelectDate';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Lock, PartyPopper, CheckCircle2, Loader2, ArrowRight, ShieldCheck, Laptop } from 'lucide-react';
@@ -335,13 +336,7 @@ function DetailsStep({ course, startsText, onDone, onPriceChange }) {
             blanket minimum age across both stages. */}
         <div className="mb-5 rounded-lg border border-line p-4">
           <p className="mb-3 text-sm font-semibold text-ink">3. Confirm your date of birth</p>
-          <input
-            type="date"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-            max={new Date().toISOString().split('T')[0]}
-            className="field"
-          />
+          <SelectDate label="Date of birth" value={dob} onChange={setDob} yearFrom={new Date().getFullYear() - 100} yearTo={new Date().getFullYear()} />
           {ageIneligible && (
             <p className="mt-2 text-xs text-red-600">
               You must be at least {MIN_AGE} to register for this course.

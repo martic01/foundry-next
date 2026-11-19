@@ -1,5 +1,6 @@
 'use client';
 
+import SelectDate from '../ui/SelectDate';
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -60,6 +61,7 @@ export default function ExamPanel({ view }) {
 
   function sendRequest() {
     setErr('');
+    if (reason.trim().split(/\s+/).filter(Boolean).length < 3) return setErr('Please explain your reason in at least 3 words.');
     start(async () => {
       const res = await requestReschedule({ reason, preferred });
       if (res?.error) return setErr(res.error);
@@ -152,9 +154,9 @@ export default function ExamPanel({ view }) {
               <label className="block text-xs font-medium uppercase tracking-wide text-inkdim">Reason
                 <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} className="field mt-1 normal-case" />
               </label>
-              <label className="block text-xs font-medium uppercase tracking-wide text-inkdim">Day you would prefer (optional, Lagos time)
-                <input type="datetime-local" value={preferred} onChange={(e) => setPreferred(e.target.value)} className="field mt-1 max-w-xs normal-case" />
-              </label>
+              <div className="text-xs font-medium uppercase tracking-wide text-inkdim">Day you would prefer (optional, Lagos time)
+                <div className="mt-1 max-w-sm normal-case"><SelectDate withTime label="Preferred day and time" value={preferred} onChange={setPreferred} yearFrom={new Date().getFullYear()} yearTo={new Date().getFullYear() + 1} /></div>
+              </div>
               <div className="flex gap-2">
                 <button type="button" onClick={sendRequest} disabled={pending} className="cta-btn">{pending && <Loader2 className="h-4 w-4 animate-spin" />} Send request</button>
                 <button type="button" onClick={() => setShowReq(false)} className="cta-btn-outline">Cancel</button>

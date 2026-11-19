@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, Maximize, ShieldAlert, CheckCircle2, WifiOff, Loader2, ChevronLeft, ChevronRight, Send, Flag } from 'lucide-react';
 import ProctorCam from './ProctorCam';
+import { markExamLive, clearExamLive } from '../ExamReturnNotice';
 import { stopAllMedia } from '../../lib/exam/media';
 import { saveExamAnswers, submitExam, recordExamViolation } from '../../app/exam-actions';
 import { EXAM_RULES } from '../../lib/exam/config';
@@ -165,6 +166,8 @@ export default function ExamRunner({ attemptId, questions, sections, initialAnsw
       window.removeEventListener('popstate', back);
     };
   }, [strike, sync, router]);
+  // A note on this device that an exam is open, so leaving and coming back shows the "continue your exam" pop-up.
+  useEffect(() => { markExamLive(attemptId, expiresAt); const t = setInterval(() => { if (done.current) clearExamLive(); }, 1000); return () => { clearInterval(t); if (done.current) clearExamLive(); }; }, [attemptId, expiresAt]);
   // Whatever way the exam ends (submitted, time up, strikes, page left), camera, microphone and full screen go off.
   useEffect(() => () => { stopAllMedia(); if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); }, []);
   // Developer tools: the usual shortcuts are blocked, and opening them any other way (docked panel) counts as a violation.
@@ -352,7 +355,7 @@ export default function ExamRunner({ attemptId, questions, sections, initialAnsw
             </main>
 
             {/* Side panel */}
-            <aside className="space-y-4">
+            <aside className="flex flex-col gap-4">
               <ProctorCam attemptId={attemptId} paused={finishing} onLive={setMediaOk} />
               {ready && (
               <>
@@ -386,7 +389,7 @@ export default function ExamRunner({ attemptId, questions, sections, initialAnsw
                 )}
                 {reviewList.length > 0 && <p className="mt-2 text-[11px] text-inkdim">• = not answered yet</p>}
               </div>
-              <div className="rounded-lg border border-line bg-surface p-4">
+              <div className="order-first rounded-lg border border-line bg-surface p-4 desktop:order-none">
                 <p className="mb-3 text-xs text-inkdim">{answeredCount} answered · {unanswered} not answered{flaggedCount ? ` · ${flaggedCount} for review` : ''}</p>
                 <button type="button" onClick={onSubmit} disabled={submitLocked} className="cta-btn w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"><Send className="h-4 w-4" /> Submit exam</button>
                 {submitLocked && <p className="mt-2 text-center text-xs text-inkdim">You can submit after {EXAM_RULES.minSubmitMinutes} minutes of writing. Unlocks in {lockText}.</p>}

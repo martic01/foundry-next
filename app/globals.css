@@ -220,3 +220,30 @@
   html.printing-tt .tt-print { position: absolute; left: 0; top: 0; width: 100%; }
   html.printing-tt .tt-noprint, html.printing-tt .tt-noprint * { display: none !important; }
 }
+
+/* Date and time boxes on phones (Android Chrome) can show as an empty strip when nothing is chosen yet.
+   Give them a real height, a visible value area and a hint colour so they are always clear. */
+input[type='date'],
+input[type='datetime-local'],
+input[type='time'] {
+  min-height: 2.75rem;
+  display: block;
+  color: rgb(var(--color-ink));
+}
+input[type='date']::-webkit-date-and-time-value,
+input[type='datetime-local']::-webkit-date-and-time-value,
+input[type='time']::-webkit-date-and-time-value {
+  min-height: 1.5em;
+  text-align: left;
+}
+input[type='date']::-webkit-datetime-edit,
+input[type='datetime-local']::-webkit-datetime-edit,
+input[type='time']::-webkit-datetime-edit {
+  color: inherit;
+  opacity: 1;
+}
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  opacity: 0.8;
+  cursor: pointer;
+}

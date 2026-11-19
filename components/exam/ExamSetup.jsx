@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Maximize, Video, Mic, CheckCircle2, Circle, Loader2, Play, X } from 'lucide-react';
 import { useBrightness } from '../../lib/exam/brightness';
+import { useFacePresence, zoomOut } from '../../lib/exam/face';
 import { trackStream, stopStream, MAX_CAMERA_TRIES, cameraFails, addCameraFail, resetCameraFails, chooseMic } from '../../lib/exam/media';
 
 // Pre-flight check BEFORE the exam starts (so no exam time is spent on set-up):
@@ -39,9 +40,10 @@ export default function ExamSetup({ hours, onStart, onCancel, busy }) {
     stop(); setErr(''); setMode('testing');
     if (!navigator.mediaDevices?.getUserMedia) { setErr('This browser cannot use the camera or microphone.'); setMode('failed'); return; }
     try {
-      const s = await navigator.mediaDevices.getUserMedia(audioOnly ? { audio: true } : { video: { facingMode: 'user' }, audio: true });
+      const s = await navigator.mediaDevices.getUserMedia(audioOnly ? { audio: true } : { video: { width: { ideal: 640 }, height: { ideal: 480 }, aspectRatio: { ideal: 4 / 3 }, facingMode: 'user' }, audio: true });
       if (!alive.current) { stopStream(trackStream(s)); return; }
       trackStream(s); streamRef.current = s;
+      if (!audioOnly) zoomOut(s);
       try {
         const AC = window.AudioContext || window.webkitAudioContext;
         const ctx = new AC(); ctxRef.current = ctx;
@@ -62,6 +64,7 @@ export default function ExamSetup({ hours, onStart, onCancel, busy }) {
   const enterFs = () => document.documentElement.requestFullscreen?.().catch(() => {});
   const mediaOk = mode === 'video' || mode === 'audio';
   const light = useBrightness(videoRef, mode === 'video');
+  const face = useFacePresence(videoRef, mode === 'video');
   const ready = fs && mediaOk;
   const Row = ({ ok, children }) => <li className="flex items-start gap-2 text-sm">{ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" /> : <Circle className="mt-0.5 h-4 w-4 flex-shrink-0 text-inkdim" />}<span className={ok ? 'text-ink' : 'text-inkdim'}>{children}</span></li>;
 
@@ -92,6 +95,12 @@ export default function ExamSetup({ hours, onStart, onCancel, busy }) {
         ))}
         {err && <p role="alert" className="mb-3 text-sm font-medium text-red-600">{err}</p>}
         {mode === 'video' && <video ref={videoRef} muted playsInline autoPlay className="mb-3 aspect-[4/3] w-full -scale-x-100 rounded-md bg-black object-cover" />}
+        {mode === 'video' && face.missing && (
+          <p role="alert" className="mb-3 rounded-md border border-red-500/60 bg-red-100 px-3 py-2 text-sm font-semibold text-red-900 dark:bg-red-950/60 dark:text-red-100">We cannot see your face. Sit in front of the camera so your face is clearly visible.</p>
+        )}
+        {mode === 'video' && !face.missing && face.close && (
+          <p className="mb-3 rounded-md border border-amber-500/60 bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-100">You are very close to the camera. Sit back a little so your whole face fits.</p>
+        )}
         {mode === 'video' && light.dark && (
           <p role="alert" className="mb-3 rounded-md border border-amber-500/60 bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-100">Your room looks too dark. Please move to a brighter place or switch on a light so your face is clearly visible. Pictures that are too dark may be flagged.</p>
         )}

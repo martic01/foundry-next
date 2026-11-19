@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Video, Mic, ShieldAlert, Loader2 } from 'lucide-react';
 import { useBrightness } from '../../lib/exam/brightness';
+import { useFacePresence, zoomOut } from '../../lib/exam/face';
 import { EXAM_RULES } from '../../lib/exam/config';
 import { trackStream, stopStream, MAX_CAMERA_TRIES, cameraFails, addCameraFail, resetCameraFails, micChosen, chooseMic } from '../../lib/exam/media';
 
@@ -99,11 +100,12 @@ export default function ProctorCam({ attemptId, paused = false, onLive }) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia(audioOnly
         ? { audio: true }
-        : { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }, audio: true });
+        : { video: { width: { ideal: 640 }, height: { ideal: 480 }, aspectRatio: { ideal: 4 / 3 }, facingMode: 'user' }, audio: true });
       if (!alive.current) { stopStream(trackStream(stream)); return; } // the exam ended while the browser was still asking
       trackStream(stream); streamRef.current = stream; watchEnded(stream);
       if (!audioOnly && !stream.getVideoTracks().length) { stopStream(stream); streamRef.current = null; throw Object.assign(new Error('no video'), { name: 'NotFoundError' }); }
       if (!audioOnly) {
+        zoomOut(stream);
         resetCameraFails(); setFails(0);
         setMode('video');
         timers.current.push(setTimeout(snap, 5000), setInterval(snap, PHOTO_EVERY_MS));
@@ -133,6 +135,7 @@ export default function ProctorCam({ attemptId, paused = false, onLive }) {
 
   const live = mode === 'video' || mode === 'audio';
   const light = useBrightness(videoRef, mode === 'video' && !paused);
+  const face = useFacePresence(videoRef, mode === 'video' && !paused);
   useEffect(() => { onLive?.(live && !paused); }, [live, paused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mobile: drag the window with a finger. It can never leave the screen: every position is clamped, also after rotating the phone.
@@ -182,6 +185,8 @@ export default function ProctorCam({ attemptId, paused = false, onLive }) {
         {mode === 'video' && (
           <>
             <video ref={videoRef} muted playsInline autoPlay className="aspect-[4/3] w-full -scale-x-100 bg-black object-cover" />
+            {face.missing && <p role="alert" className="border-t border-red-500/60 bg-red-100 px-2 py-1.5 text-[11px] font-bold leading-snug text-red-900 dark:bg-red-950/60 dark:text-red-100">We cannot see your face. Sit in front of the camera so your face is clearly visible.</p>}
+            {!face.missing && face.close && <p className="border-t border-amber-500/60 bg-amber-100 px-2 py-1.5 text-[11px] font-medium leading-snug text-amber-900 dark:bg-amber-950/60 dark:text-amber-100">Sit back a little so your whole face fits.</p>}
             {light.dark && <p role="alert" className="border-t border-amber-500/60 bg-amber-100 px-2 py-1.5 text-[11px] font-medium leading-snug text-amber-900 dark:bg-amber-950/60 dark:text-amber-100">Too dark. Move to a brighter place so your face is visible.</p>}
           </>
         )}

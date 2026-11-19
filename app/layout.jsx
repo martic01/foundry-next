@@ -7,6 +7,7 @@ import ConditionalChrome from '../components/ConditionalChrome';
 import NavigationLoader from '../components/NavigationLoader';
 import { DialogProvider } from '../components/ui/DialogProvider';
 import { THEME_INIT_SCRIPT } from '../lib/theme-script';
+import ExamReturnNotice from '../components/ExamReturnNotice';
 import { RESUME_SCRIPT } from '../lib/resume-script';
 import { SITE_URL, SITE_NAME, SITE_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, OG_IMAGE } from '../lib/seo';
 
@@ -98,6 +99,7 @@ export default function RootLayout({ children }) {
             {children}
           </ConditionalChrome>
         </DialogProvider>
+        <ExamReturnNotice />
       </body>
     </html>
   );
